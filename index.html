@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TEDx Shift Manager</title>
     <style>
         /* --- CSS Variables --- */
@@ -12,18 +12,20 @@
             --bg-color: #f8f9fa;
             --header-bg: #ffffff;
             --modal-bg: #ffffff;
+            --drawer-bg: #ffffff;
             --text-main: #1a1a1a;
             --text-sub: #666666;
             --line-color: #e0e0e0;
-            --line-sub-color: #eeeeee;
-            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            --line-sub-color: #f0f0f0;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             --overlay-bg: rgba(0, 0, 0, 0.4);
             
-            --hour-height: 120px; /* 5分=10px */
+            /* 【変更】1時間の高さを1.5倍 (120px -> 180px) */
+            --hour-height: 180px;
             --time-col-width: 50px;
-            --col-min-width: 130px; /* 列幅 */
+            --col-min-width: 140px;
             
-            /* Roles */
+            /* Roles Colors */
             --role-reception: #ffebee;
             --role-stage: #e1f5fe;
             --role-stream: #e8f5e9;
@@ -35,6 +37,7 @@
             --bg-color: #121212;
             --header-bg: #1e1e1e;
             --modal-bg: #2c2c2c;
+            --drawer-bg: #1e1e1e;
             --text-main: #ffffff;
             --text-sub: #aaaaaa;
             --line-color: #333333;
@@ -49,9 +52,9 @@
             --role-default: #34204a;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             height: 100vh;
@@ -67,25 +70,31 @@
             border-bottom: 1px solid var(--line-color);
             z-index: 200;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 60px;
         }
-        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        h1 { font-size: 1.1rem; font-weight: 800; }
-        h1 span { color: var(--ted-red); }
-        .theme-toggle { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
         
-        .controls input {
-            width: 100%; padding: 8px 12px; border-radius: 6px;
-            border: 1px solid var(--line-color); background: var(--bg-color); color: var(--text-main);
-        }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        .menu-btn { font-size: 1.5rem; background: none; border: none; color: var(--text-main); cursor: pointer; }
+        
+        h1 { font-size: 1.1rem; font-weight: 800; margin: 0; }
+        h1 span { color: var(--ted-red); }
 
+        .header-right { display: flex; gap: 12px; }
+        .icon-btn { background: none; border: none; cursor: pointer; font-size: 1.3rem; color: var(--text-main); position: relative; }
+        
         /* --- Tabs --- */
         .tabs {
             display: flex; overflow-x: auto; background: var(--header-bg);
             border-bottom: 1px solid var(--line-color); flex-shrink: 0;
+            padding-bottom: 2px;
         }
         .tab {
-            padding: 10px 20px; font-size: 0.9rem; font-weight: bold; color: var(--text-sub);
+            padding: 12px 20px; font-size: 0.9rem; font-weight: bold; color: var(--text-sub);
             cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap;
+            transition: color 0.2s;
         }
         .tab.active { color: var(--ted-red); border-bottom-color: var(--ted-red); }
 
@@ -97,7 +106,17 @@
             background: var(--bg-color);
             display: grid;
             grid-template-columns: var(--time-col-width) repeat(var(--col-count, 1), minmax(var(--col-min-width), 1fr));
-            grid-template-rows: 40px 1fr; 
+            grid-template-rows: 40px 1fr;
+            overscroll-behavior-y: contain; /* バウンド制御 */
+            scroll-behavior: smooth;
+        }
+
+        /* スクロール下部の余白（バウンド演出用） */
+        .grid-container::after {
+            content: '';
+            grid-column: 1 / -1;
+            grid-row: 3;
+            height: 100px; /* 余白 */
         }
 
         .corner-cell {
@@ -125,23 +144,27 @@
         }
         .time-slot {
             height: var(--hour-height);
-            text-align: right; padding-right: 5px;
-            font-size: 0.7rem; color: var(--text-sub);
+            text-align: right; padding-right: 6px;
+            font-size: 0.75rem; color: var(--text-sub);
+            font-weight: 500;
         }
-        .time-slot span { position: relative; top: -6px; display: block; background: var(--header-bg); }
+        .time-slot span { position: relative; top: -8px; display: block; background: var(--header-bg); }
 
         .member-column {
             grid-row: 2; position: relative;
             border-right: 1px solid var(--line-color);
-            background-image: linear-gradient(var(--line-color) 1px, transparent 1px), linear-gradient(var(--line-sub-color) 1px, transparent 1px);
-            background-size: 100% var(--hour-height), 100% calc(var(--hour-height) / 2);
+            background-image: 
+                linear-gradient(var(--line-color) 1px, transparent 1px), 
+                linear-gradient(var(--line-sub-color) 1px, transparent 1px);
+            background-size: 
+                100% var(--hour-height), 
+                100% calc(var(--hour-height) / 4); /* 15分刻みの補助線 */
             background-position: 0 0;
         }
 
         /* --- Shift Cards --- */
         .shift-card {
             position: absolute;
-            /* Width and Left are set by JS now */
             background: var(--header-bg);
             border-radius: 6px; padding: 4px 6px;
             box-shadow: var(--shadow);
@@ -149,7 +172,7 @@
             font-size: 0.8rem; overflow: hidden;
             display: flex; flex-direction: column;
             cursor: pointer;
-            transition: transform 0.1s;
+            transition: transform 0.1s, box-shadow 0.1s;
             z-index: 10;
         }
         .shift-card:active { transform: scale(0.98); }
@@ -167,51 +190,77 @@
         }
         .card-time { font-size: 0.65rem; color: var(--text-sub); font-family: monospace; line-height: 1; margin-bottom: 2px;}
         .card-title { font-weight: 700; font-size: 0.8rem; line-height: 1.1; margin-bottom: auto;}
-
-        /* --- Floating Action Button (FAB) --- */
-        .fab {
-            position: fixed; bottom: 20px; right: 20px;
-            width: 56px; height: 56px; border-radius: 50%;
-            background: var(--ted-red); color: white;
-            border: none; box-shadow: 0 4px 10px rgba(230, 43, 30, 0.4);
-            font-size: 2rem; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 100; transition: transform 0.2s;
+        
+        /* 詳細ありマーク */
+        .has-note::after {
+            content: '📝';
+            position: absolute; top: 4px; right: 4px;
+            font-size: 0.7rem; opacity: 0.7;
         }
-        .fab:active { transform: scale(0.9); }
+
+        /* --- Drawer Menu (Links) --- */
+        .drawer-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 300;
+            opacity: 0; visibility: hidden; transition: opacity 0.3s;
+        }
+        .drawer {
+            position: fixed; top: 0; left: 0; width: 85%; max-width: 300px; height: 100%;
+            background: var(--drawer-bg); z-index: 301;
+            transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            display: flex; flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        .drawer.open { transform: translateX(0); }
+        .drawer-overlay.open { opacity: 1; visibility: visible; }
+
+        .drawer-header { padding: 20px; border-bottom: 1px solid var(--line-color); display: flex; justify-content: space-between; align-items: center; }
+        .drawer-title { font-weight: bold; font-size: 1.2rem; }
+        .drawer-content { flex: 1; overflow-y: auto; padding: 20px; }
+        
+        .link-item { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 0; border-bottom: 1px solid var(--line-sub-color);
+        }
+        .link-info a { color: var(--text-main); text-decoration: none; font-weight: 500; display: block; }
+        .link-info span { font-size: 0.75rem; color: var(--text-sub); }
+        .link-actions button { background: none; border: none; font-size: 1rem; cursor: pointer; padding: 5px; color: var(--text-sub); }
+
+        .drawer-footer { padding: 20px; border-top: 1px solid var(--line-color); }
 
         /* --- Modals --- */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--overlay-bg); z-index: 500;
-            display: none; align-items: flex-end; justify-content: center; /* Bottom sheet style on mobile */
+            display: none; align-items: flex-end; justify-content: center;
+            padding-bottom: 0;
         }
         .modal-overlay.open { display: flex; animation: fadeIn 0.2s; }
-        
-        /* PC adjustment */
         @media(min-width: 600px) {
-            .modal-overlay { align-items: center; }
-            .modal-content { border-radius: 12px !important; width: 400px !important; }
+            .modal-overlay { align-items: center; padding-bottom: 0; }
+            .modal-content { border-radius: 12px !important; width: 450px !important; max-height: 90vh; }
         }
-
         .modal-content {
             background: var(--modal-bg); width: 100%; max-width: 600px;
             border-radius: 20px 20px 0 0; padding: 25px;
             box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
             animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 85vh; overflow-y: auto;
         }
-        
+
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 1.2rem; font-weight: bold; }
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-sub); }
 
-        /* Form Elements */
+        /* Forms */
         .form-group { margin-bottom: 15px; }
         .form-label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 5px; }
-        .form-input, .form-select {
+        .form-input, .form-select, .form-textarea {
             width: 100%; padding: 12px; border-radius: 8px;
             border: 1px solid var(--line-color); background: var(--bg-color); color: var(--text-main);
-            font-size: 1rem;
+            font-size: 1rem; font-family: inherit;
         }
+        .form-textarea { min-height: 80px; resize: vertical; }
         .form-row { display: flex; gap: 10px; }
         .form-row > div { flex: 1; }
 
@@ -219,431 +268,617 @@
             width: 100%; padding: 14px; background: var(--ted-red); color: white;
             border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer;
         }
+        .btn-secondary {
+            width: 100%; padding: 12px; background: var(--line-sub-color); color: var(--text-main);
+            border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
         .btn-delete {
-            width: 100%; padding: 14px; background: transparent; color: var(--text-sub);
-            border: 1px solid var(--line-color); border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
+            width: 100%; padding: 14px; background: transparent; color: #ff4444;
+            border: 1px solid #ff4444; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
         }
 
-        /* Detail View Specifics */
-        .detail-row { margin-bottom: 12px; border-bottom: 1px solid var(--line-color); padding-bottom: 8px; }
-        .detail-label { font-size: 0.8rem; color: var(--text-sub); }
-        .detail-value { font-size: 1.1rem; font-weight: 500; margin-top: 2px; }
+        /* Member List Styling */
+        .member-list-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-bottom: 1px solid var(--line-sub-color);
+        }
+        .member-remove-btn { color: #ff4444; font-size: 1.2rem; background: none; border: none; cursor: pointer; }
+
+        /* FAB */
+        .fab {
+            position: fixed; bottom: 30px; right: 25px;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: var(--ted-red); color: white;
+            border: none; box-shadow: 0 4px 15px rgba(230, 43, 30, 0.4);
+            font-size: 2rem; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 100; transition: transform 0.2s;
+        }
+        .fab:active { transform: scale(0.9); }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-        
         .hidden-col { display: none; }
+
+        /* Detail View */
+        .detail-row { margin-bottom: 12px; border-bottom: 1px solid var(--line-color); padding-bottom: 8px; }
+        .detail-label { font-size: 0.8rem; color: var(--text-sub); }
+        .detail-value { font-size: 1.1rem; font-weight: 500; margin-top: 4px; white-space: pre-wrap; }
+        .detail-note { background: var(--line-sub-color); padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 5px; }
+
     </style>
 </head>
 <body>
 
+<!-- Header -->
 <header>
-    <div class="top-bar">
-        <h1><span>TEDx</span> Shift Manager</h1>
-        <button class="theme-toggle" id="themeToggle">🌙</button>
+    <div class="header-left">
+        <button class="menu-btn" id="menuBtn">≡</button>
+        <h1><span>TEDx</span> Shift</h1>
     </div>
-    <div class="controls">
-        <input type="text" id="nameFilter" placeholder="名前で列を絞り込み...">
+    <div class="header-right">
+        <button class="icon-btn" id="memberManageBtn" title="メンバー管理">👤</button>
+        <button class="icon-btn" id="themeToggle" title="ダークモード">🌙</button>
     </div>
 </header>
 
+<!-- Date Tabs -->
 <div class="tabs" id="dateTabs"></div>
 
+<!-- Main Grid -->
 <div class="grid-container" id="gridContainer">
     <div class="corner-cell"></div>
     <!-- Grid Content injected by JS -->
 </div>
 
-<!-- Floating Action Button -->
+<!-- FAB -->
 <button class="fab" id="addBtn" aria-label="Add Shift">＋</button>
 
-<!-- Add Modal -->
-<div class="modal-overlay" id="addModal">
+<!-- Drawer: Link Collection -->
+<div class="drawer-overlay" id="drawerOverlay"></div>
+<div class="drawer" id="drawer">
+    <div class="drawer-header">
+        <span class="drawer-title">🔗 リンク集</span>
+        <button class="close-btn" id="closeDrawer">×</button>
+    </div>
+    <div class="drawer-content" id="linkList">
+        <!-- Links injected here -->
+    </div>
+    <div class="drawer-footer">
+        <button class="btn-secondary" id="addLinkBtn">+ リンクを追加</button>
+        <div style="margin-top:15px; text-align:center;">
+             <button class="icon-btn" id="resetBtn" title="全データリセット" style="font-size:0.8rem; opacity:0.6;">🔄 リセット</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Add/Edit Shift -->
+<div class="modal-overlay" id="shiftModal">
     <div class="modal-content">
         <div class="modal-header">
-            <h2 class="modal-title">シフト追加</h2>
-            <button class="close-btn" onclick="closeModal('addModal')">×</button>
+            <h2 class="modal-title" id="shiftModalTitle">シフト追加</h2>
+            <button class="close-btn" onclick="closeModal('shiftModal')">×</button>
         </div>
-        <form id="addForm">
+        <form id="shiftForm">
+            <input type="hidden" id="shiftId">
             <div class="form-group">
                 <label class="form-label">日付</label>
-                <select id="addDate" class="form-select" required></select>
+                <select id="shiftDate" class="form-select" required></select>
             </div>
             <div class="form-group">
                 <label class="form-label">名前</label>
-                <input type="text" id="addName" class="form-input" list="memberList" placeholder="メンバー名" required>
-                <datalist id="memberList"></datalist>
+                <select id="shiftName" class="form-select" required></select>
+                <div style="text-align:right; margin-top:5px;">
+                    <a href="#" id="quickAddMember" style="font-size:0.8rem; color:var(--ted-red);">+ メンバー追加</a>
+                </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">開始</label>
-                    <input type="time" id="addStart" class="form-input" required>
+                    <input type="time" id="shiftStart" class="form-input" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">終了</label>
-                    <input type="time" id="addEnd" class="form-input" required>
+                    <input type="time" id="shiftEnd" class="form-input" required>
                 </div>
             </div>
             <div class="form-group">
-                <label class="form-label">役割</label>
-                <select id="addRole" class="form-select">
-                    <option value="受付">受付</option>
-                    <option value="登壇補助">登壇補助</option>
-                    <option value="配信">配信</option>
-                    <option value="設営">設営/撤収</option>
-                    <option value="アテンド">アテンド</option>
-                    <option value="その他">その他</option>
-                </select>
+                <label class="form-label">役割 (入力)</label>
+                <input type="text" id="shiftRole" class="form-input" placeholder="例: 受付, 配信" list="roleList">
+                <datalist id="roleList">
+                    <option value="受付">
+                    <option value="登壇補助">
+                    <option value="配信">
+                    <option value="設営">
+                    <option value="アテンド">
+                </datalist>
             </div>
             <div class="form-group">
                 <label class="form-label">企画名 / タスク</label>
-                <input type="text" id="addTitle" class="form-input" placeholder="例：受付対応" required>
+                <input type="text" id="shiftTitle" class="form-input" placeholder="例: 来場者対応" required>
             </div>
             <div class="form-group">
                 <label class="form-label">場所</label>
-                <input type="text" id="addLocation" class="form-input" placeholder="例：エントランス">
+                <input type="text" id="shiftLocation" class="form-input" placeholder="例: エントランス">
             </div>
-            <button type="submit" class="btn-primary">追加する</button>
+            <div class="form-group">
+                <label class="form-label">詳細・メモ (タップ時のみ表示)</label>
+                <textarea id="shiftNote" class="form-textarea" placeholder="詳細な手順や連絡事項など..."></textarea>
+            </div>
+            <button type="submit" class="btn-primary">保存する</button>
         </form>
     </div>
 </div>
 
-<!-- Detail Modal -->
+<!-- Modal: Shift Detail -->
 <div class="modal-overlay" id="detailModal">
     <div class="modal-content">
         <div class="modal-header">
             <h2 class="modal-title">シフト詳細</h2>
             <button class="close-btn" onclick="closeModal('detailModal')">×</button>
         </div>
-        <div id="detailContent">
-            <!-- Details injected here -->
+        <div id="detailContent"></div>
+        <div class="form-row" style="margin-top:20px;">
+            <button class="btn-secondary" id="editShiftBtn" style="margin-top:0;">編集</button>
+            <button class="btn-delete" id="deleteShiftBtn" style="margin-top:0; border:none; color:#ff4444;">削除</button>
         </div>
-        <button class="btn-delete" id="deleteBtn">このシフトを削除</button>
+    </div>
+</div>
+
+<!-- Modal: Member Manager -->
+<div class="modal-overlay" id="memberModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">メンバー管理</h2>
+            <button class="close-btn" onclick="closeModal('memberModal')">×</button>
+        </div>
+        <div class="form-group" style="display:flex; gap:10px;">
+            <input type="text" id="newMemberName" class="form-input" placeholder="新しいメンバー名">
+            <button class="btn-primary" id="addNewMemberBtn" style="width:auto;">追加</button>
+        </div>
+        <div id="memberListContainer" style="max-height:300px; overflow-y:auto; border-top:1px solid var(--line-color);">
+            <!-- Members injected -->
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Link Add/Edit -->
+<div class="modal-overlay" id="linkModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title" id="linkModalTitle">リンク追加</h2>
+            <button class="close-btn" onclick="closeModal('linkModal')">×</button>
+        </div>
+        <form id="linkForm">
+            <input type="hidden" id="linkId">
+            <div class="form-group">
+                <label class="form-label">タイトル</label>
+                <input type="text" id="linkTitle" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">URL</label>
+                <input type="url" id="linkUrl" class="form-input" placeholder="https://..." required>
+            </div>
+            <button type="submit" class="btn-primary">保存</button>
+            <button type="button" class="btn-delete" id="deleteLinkBtn" style="display:none;">削除</button>
+        </form>
     </div>
 </div>
 
 <script>
-    // --- Initial Data ---
-    let rawData = [
-        { "id": 1, "date": "Day1", "name": "山田", "role": "受付", "title": "来場者受付", "start": "09:30", "end": "12:00", "location": "エントランス" },
-        { "id": 2, "date": "Day1", "name": "鈴木", "role": "登壇補助", "title": "Session 1 準備", "start": "10:00", "end": "11:30", "location": "ホールA" },
-        { "id": 3, "date": "Day1", "name": "山田", "role": "受付", "title": "VIP対応", "start": "10:00", "end": "11:00", "location": "VIPルーム" }, // 重複テスト用
-        { "id": 4, "date": "Day1", "name": "佐藤", "role": "配信", "title": "CM送出テスト", "start": "09:55", "end": "10:05", "location": "配信卓" },
-        { "id": 5, "date": "Day1", "name": "山田", "role": "受付", "title": "遅刻者対応", "start": "13:00", "end": "14:35", "location": "エントランス" },
-        { "id": 6, "date": "Day1", "name": "田中", "role": "設営", "title": "ランチ会場設営", "start": "11:15", "end": "12:45", "location": "ホワイエ" },
-        { "id": 7, "date": "Day2", "name": "山田", "role": "撤収", "title": "全体片付け", "start": "18:00", "end": "20:00", "location": "全館" }
+    // --- Keys & Defaults ---
+    const STORAGE_SHIFTS = 'tedx_shifts';
+    const STORAGE_MEMBERS = 'tedx_members';
+    const STORAGE_LINKS = 'tedx_links';
+
+    // 日付設定
+    const DATE_LABELS = { "Day1": "4/18", "Day2": "4/19" };
+    const DATES = ["4/18", "4/19"];
+
+    // 初期データ
+    const defaultShifts = [
+        { id: 1, date: "4/18", name: "山田", role: "受付", title: "来場者受付", start: "09:30", end: "12:00", location: "エントランス", note: "笑顔で対応すること" },
+        { id: 2, date: "4/18", name: "鈴木", role: "登壇補助", title: "Session 1", start: "10:00", end: "11:30", location: "ホールA", note: "" },
+        { id: 3, date: "4/18", name: "佐藤", role: "配信", title: "CMテスト", start: "09:55", end: "10:05", location: "配信卓", note: "" }
+    ];
+    const defaultMembers = ["山田", "鈴木", "佐藤", "田中", "高橋"];
+    const defaultLinks = [
+        { id: 1, title: "TEDx 公式サイト", url: "https://www.ted.com" },
+        { id: 2, title: "マニュアルDrive", url: "#" }
     ];
 
-    // --- Config ---
-    const START_HOUR = 8;
+    // --- State ---
+    let shifts = [];
+    let members = [];
+    let links = [];
+    
+    // Config
+    const START_HOUR = 7; // 7:00開始
     const END_HOUR = 21;
-    const HOUR_HEIGHT = 120; 
+    const HOUR_HEIGHT = 180; // 拡大
 
-    let currentTab = "Day1";
-    let uniqueDates = [];
-    let currentSelectedShiftId = null;
+    let currentTab = "4/18";
+    let selectedShiftId = null;
 
+    // --- Init ---
     document.addEventListener('DOMContentLoaded', () => {
+        loadData();
         initApp();
         setupEvents();
     });
 
+    function loadData() {
+        // Shifts
+        const s = localStorage.getItem(STORAGE_SHIFTS);
+        shifts = s ? JSON.parse(s) : [...defaultShifts];
+
+        // Members
+        const m = localStorage.getItem(STORAGE_MEMBERS);
+        members = m ? JSON.parse(m) : [...defaultMembers];
+        // Ensure members in shifts exist in member list
+        shifts.forEach(sh => { if(!members.includes(sh.name)) members.push(sh.name); });
+        
+        // Links
+        const l = localStorage.getItem(STORAGE_LINKS);
+        links = l ? JSON.parse(l) : [...defaultLinks];
+    }
+
+    function saveData() {
+        localStorage.setItem(STORAGE_SHIFTS, JSON.stringify(shifts));
+        localStorage.setItem(STORAGE_MEMBERS, JSON.stringify(members));
+        localStorage.setItem(STORAGE_LINKS, JSON.stringify(links));
+    }
+
     function initApp() {
-        refreshData();
         setupTabs();
         renderGrid(currentTab);
         setupTheme();
-        
-        // Populate Datalist
-        updateDatalist();
     }
 
-    function refreshData() {
-        const dates = new Set(rawData.map(d => d.date));
-        uniqueDates = Array.from(dates).sort();
-        if(uniqueDates.length === 0) uniqueDates = ["Day1"];
-        if(!uniqueDates.includes(currentTab)) currentTab = uniqueDates[0];
-    }
-
-    // --- Grid Rendering Logic (Updated for Overlaps) ---
+    // --- Grid Render ---
     function renderGrid(date) {
         const container = document.getElementById('gridContainer');
-        const daysEvents = rawData.filter(d => d.date === date);
-        const membersSet = new Set(daysEvents.map(e => e.name));
-        const currentMembers = Array.from(membersSet).sort();
-
-        // 1. Setup Grid Columns
-        container.style.setProperty('--col-count', currentMembers.length);
         container.innerHTML = '<div class="corner-cell"></div>';
 
-        // 2. Headers
-        currentMembers.forEach((member, index) => {
-            const header = document.createElement('div');
-            header.className = 'member-header';
-            header.innerText = member;
-            header.dataset.member = member;
-            header.style.gridColumn = index + 2; 
-            header.style.gridRow = 1;
-            container.appendChild(header);
+        // メンバー列の決定（メンバーリスト順）
+        // 表示対象：メンバーリスト全員（シフトがなくても表示）
+        const displayMembers = [...members].sort();
+
+        container.style.setProperty('--col-count', displayMembers.length);
+
+        // 1. Headers
+        displayMembers.forEach((member, index) => {
+            const h = document.createElement('div');
+            h.className = 'member-header';
+            h.innerText = member;
+            h.style.gridColumn = index + 2; h.style.gridRow = 1;
+            container.appendChild(h);
         });
 
-        // 3. Time Sidebar
-        const timeSidebar = document.createElement('div');
-        timeSidebar.className = 'time-sidebar';
-        timeSidebar.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
-        for (let h = START_HOUR; h <= END_HOUR; h++) {
+        // 2. Time Sidebar
+        const sidebar = document.createElement('div');
+        sidebar.className = 'time-sidebar';
+        sidebar.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
+        for(let h = START_HOUR; h <= END_HOUR; h++) {
             const slot = document.createElement('div');
             slot.className = 'time-slot';
             slot.innerHTML = `<span>${h}:00</span>`;
-            timeSidebar.appendChild(slot);
+            sidebar.appendChild(slot);
         }
-        container.appendChild(timeSidebar);
+        container.appendChild(sidebar);
 
-        // 4. Member Columns & Events
-        currentMembers.forEach((member, index) => {
+        // 3. Columns & Cards
+        const daysShifts = shifts.filter(s => s.date === date);
+
+        displayMembers.forEach((member, index) => {
             const col = document.createElement('div');
             col.className = 'member-column';
-            col.dataset.member = member;
             col.style.gridColumn = index + 2;
             col.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
 
-            // Filter events for this person only
-            const myEvents = daysEvents.filter(e => e.name === member);
-            
-            // Calculate Overlaps (Packing) for this person
-            const packedEvents = packEvents(myEvents);
+            const myShifts = daysShifts.filter(s => s.name === member);
+            const packed = packEvents(myShifts);
 
-            packedEvents.forEach(evt => {
+            packed.forEach(evt => {
                 const card = createCard(evt);
                 col.appendChild(card);
             });
-
             container.appendChild(col);
         });
-
-        applyFilter();
-    }
-
-    // --- Overlap Calculation Algorithm (Column Packing) ---
-    function packEvents(events) {
-        // Sort by start time
-        const sorted = [...events].sort((a, b) => timeToMinutes(a.start) - timeToMinutes(b.start));
-        const columns = []; // Array of arrays (lanes)
-
-        sorted.forEach(event => {
-            let placed = false;
-            // Try to place in an existing lane
-            for (let i = 0; i < columns.length; i++) {
-                const lastEventInLane = columns[i][columns[i].length - 1];
-                if (timeToMinutes(lastEventInLane.end) <= timeToMinutes(event.start)) {
-                    columns[i].push(event);
-                    event.colIndex = i;
-                    placed = true;
-                    break;
-                }
-            }
-            // Create new lane if needed
-            if (!placed) {
-                columns.push([event]);
-                event.colIndex = columns.length - 1;
-            }
-        });
-
-        // Calculate visual properties
-        const maxCols = columns.length;
-        sorted.forEach(event => {
-            event.widthPct = 100 / maxCols;
-            event.leftPct = (100 / maxCols) * event.colIndex;
-        });
-
-        return sorted;
     }
 
     function createCard(evt) {
         const el = document.createElement('div');
         el.className = `shift-card ${getRoleClass(evt.role)}`;
-        
+        if(evt.note && evt.note.trim().length > 0) el.classList.add('has-note');
+
         const top = getTopPosition(evt.start);
         const height = getDurationHeight(evt.start, evt.end);
-        
-        // Apply calculated layout
+
         el.style.top = `${top}px`;
-        el.style.height = `${Math.max(height, 20)}px`;
+        el.style.height = `${Math.max(height, 30)}px`;
         el.style.width = `calc(${evt.widthPct}% - 4px)`;
         el.style.left = `calc(${evt.leftPct}% + 2px)`;
-
+        
         el.innerHTML = `
-            <span class="card-role">${evt.role}</span>
+            <span class="card-role">${evt.role || '役割なし'}</span>
             <div class="card-time">${evt.start}-${evt.end}</div>
             <div class="card-title">${evt.title}</div>
         `;
-        
-        // Add Click Handler for Details
         el.onclick = () => openDetailModal(evt);
-        
         return el;
     }
 
-    // --- Helpers ---
-    function timeToMinutes(str) {
-        const [h, m] = str.split(':').map(Number);
-        return h * 60 + m;
+    // --- Logic ---
+    function packEvents(events) {
+        const sorted = [...events].sort((a,b) => timeToMinutes(a.start) - timeToMinutes(b.start));
+        const cols = [];
+        sorted.forEach(evt => {
+            let placed = false;
+            for(let i=0; i<cols.length; i++) {
+                if(timeToMinutes(cols[i][cols[i].length-1].end) <= timeToMinutes(evt.start)) {
+                    cols[i].push(evt); evt.colIndex = i; placed = true; break;
+                }
+            }
+            if(!placed) { cols.push([evt]); evt.colIndex = cols.length - 1; }
+        });
+        const max = cols.length;
+        sorted.forEach(e => { e.widthPct = 100/max; e.leftPct = (100/max)*e.colIndex; });
+        return sorted;
     }
-    function getTopPosition(str) {
-        const minutes = timeToMinutes(str) - (START_HOUR * 60);
-        return (minutes / 60) * HOUR_HEIGHT;
-    }
-    function getDurationHeight(start, end) {
-        const diff = timeToMinutes(end) - timeToMinutes(start);
-        return (diff / 60) * HOUR_HEIGHT;
-    }
-    function getRoleClass(role) {
-        if (role.includes("受付")) return "role-reception";
-        if (role.includes("登壇") || role.includes("アテンド")) return "role-stage";
-        if (role.includes("配信")) return "role-stream";
-        if (role.includes("設営") || role.includes("撤収")) return "role-venue";
+
+    function timeToMinutes(s) { const [h,m] = s.split(':').map(Number); return h*60+m; }
+    function getTopPosition(s) { return ((timeToMinutes(s) - START_HOUR*60)/60)*HOUR_HEIGHT; }
+    function getDurationHeight(s,e) { return ((timeToMinutes(e)-timeToMinutes(s))/60)*HOUR_HEIGHT; }
+    function getRoleClass(r) {
+        if(!r) return "role-other";
+        if(r.includes("受付")) return "role-reception";
+        if(r.includes("登壇")||r.includes("アテンド")) return "role-stage";
+        if(r.includes("配信")) return "role-stream";
+        if(r.includes("設営")||r.includes("撤収")) return "role-venue";
         return "role-other";
     }
 
-    // --- UI Logic (Tabs, Filter, Theme) ---
     function setupTabs() {
-        const container = document.getElementById('dateTabs');
-        container.innerHTML = uniqueDates.map(date => 
-            `<div class="tab ${date === currentTab ? 'active' : ''}" onclick="switchTab('${date}')">${date}</div>`
-        ).join('');
+        const c = document.getElementById('dateTabs');
+        c.innerHTML = DATES.map(d => `<div class="tab ${d===currentTab?'active':''}" onclick="switchTab('${d}')">${d}</div>`).join('');
     }
-    window.switchTab = (date) => {
-        currentTab = date;
-        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.innerText === date));
-        renderGrid(date);
-    };
+    window.switchTab = (d) => { currentTab = d; setupTabs(); renderGrid(d); };
 
+    // --- Modal & Form Handlers ---
     function setupEvents() {
-        // Modal Toggles
-        document.getElementById('addBtn').onclick = openAddModal;
-        document.getElementById('addForm').onsubmit = handleAddSubmit;
-        document.getElementById('deleteBtn').onclick = handleDelete;
-        document.getElementById('nameFilter').addEventListener('input', applyFilter);
+        // Shift
+        document.getElementById('addBtn').onclick = () => openShiftModal();
+        document.getElementById('shiftForm').onsubmit = handleShiftSubmit;
+        document.getElementById('editShiftBtn').onclick = () => { closeModal('detailModal'); openShiftModal(selectedShiftId); };
+        document.getElementById('deleteShiftBtn').onclick = handleDeleteShift;
+        
+        // Member
+        document.getElementById('memberManageBtn').onclick = openMemberModal;
+        document.getElementById('addNewMemberBtn').onclick = handleAddMember;
+        document.getElementById('quickAddMember').onclick = (e) => { e.preventDefault(); closeModal('shiftModal'); openMemberModal(); };
+
+        // Links / Drawer
+        document.getElementById('menuBtn').onclick = openDrawer;
+        document.getElementById('closeDrawer').onclick = closeDrawer;
+        document.getElementById('drawerOverlay').onclick = closeDrawer;
+        document.getElementById('addLinkBtn').onclick = () => openLinkModal();
+        document.getElementById('linkForm').onsubmit = handleLinkSubmit;
+        document.getElementById('deleteLinkBtn').onclick = handleDeleteLink;
+
+        // Reset
+        document.getElementById('resetBtn').onclick = () => {
+            if(confirm("全てのデータを初期化しますか？")) {
+                localStorage.clear(); location.reload();
+            }
+        };
     }
 
-    // --- Add Functionality ---
-    function openAddModal() {
-        const modal = document.getElementById('addModal');
-        const dateSelect = document.getElementById('addDate');
+    // --- Shift Operations ---
+    function openShiftModal(editId = null) {
+        const modal = document.getElementById('shiftModal');
+        const title = document.getElementById('shiftModalTitle');
+        const dateSel = document.getElementById('shiftDate');
+        const nameSel = document.getElementById('shiftName');
         
-        // Populate Date Select
-        dateSelect.innerHTML = uniqueDates.map(d => `<option value="${d}">${d}</option>`).join('');
-        dateSelect.value = currentTab; // Default to current tab
-        
-        // Reset fields
-        document.getElementById('addName').value = '';
-        document.getElementById('addStart').value = '10:00';
-        document.getElementById('addEnd').value = '11:00';
-        document.getElementById('addTitle').value = '';
-        document.getElementById('addLocation').value = '';
-        
+        dateSel.innerHTML = DATES.map(d => `<option value="${d}">${d}</option>`).join('');
+        nameSel.innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join('');
+
+        if(editId) {
+            // Edit Mode
+            const target = shifts.find(s => s.id === editId);
+            if(!target) return;
+            title.innerText = "シフト編集";
+            document.getElementById('shiftId').value = target.id;
+            dateSel.value = target.date;
+            nameSel.value = target.name;
+            document.getElementById('shiftStart').value = target.start;
+            document.getElementById('shiftEnd').value = target.end;
+            document.getElementById('shiftRole').value = target.role;
+            document.getElementById('shiftTitle').value = target.title;
+            document.getElementById('shiftLocation').value = target.location;
+            document.getElementById('shiftNote').value = target.note || "";
+        } else {
+            // Add Mode
+            title.innerText = "シフト追加";
+            document.getElementById('shiftId').value = "";
+            dateSel.value = currentTab;
+            if(members.length > 0) nameSel.value = members[0];
+            document.getElementById('shiftStart').value = "10:00";
+            document.getElementById('shiftEnd').value = "11:00";
+            document.getElementById('shiftRole').value = "";
+            document.getElementById('shiftTitle').value = "";
+            document.getElementById('shiftLocation').value = "";
+            document.getElementById('shiftNote').value = "";
+        }
         modal.classList.add('open');
     }
 
-    function handleAddSubmit(e) {
+    function handleShiftSubmit(e) {
         e.preventDefault();
-        
-        const newShift = {
-            id: Date.now(), // Simple ID gen
-            date: document.getElementById('addDate').value,
-            name: document.getElementById('addName').value.trim(),
-            start: document.getElementById('addStart').value,
-            end: document.getElementById('addEnd').value,
-            role: document.getElementById('addRole').value,
-            title: document.getElementById('addTitle').value,
-            location: document.getElementById('addLocation').value || '未定'
+        const idVal = document.getElementById('shiftId').value;
+        const newDat = {
+            id: idVal ? parseInt(idVal) : Date.now(),
+            date: document.getElementById('shiftDate').value,
+            name: document.getElementById('shiftName').value,
+            start: document.getElementById('shiftStart').value,
+            end: document.getElementById('shiftEnd').value,
+            role: document.getElementById('shiftRole').value,
+            title: document.getElementById('shiftTitle').value,
+            location: document.getElementById('shiftLocation').value,
+            note: document.getElementById('shiftNote').value
         };
 
-        if(!newShift.name) return;
-
-        rawData.push(newShift);
-        
-        // Switch to the date of the new shift
-        if(newShift.date !== currentTab) {
-            currentTab = newShift.date;
+        if(idVal) {
+            shifts = shifts.map(s => s.id === newDat.id ? newDat : s);
+        } else {
+            shifts.push(newDat);
         }
-
-        closeModal('addModal');
-        initApp(); // Re-render everything
+        saveData();
+        closeModal('shiftModal');
+        // If date changed
+        if(newDat.date !== currentTab) switchTab(newDat.date);
+        else renderGrid(currentTab);
     }
 
-    function updateDatalist() {
-        const list = document.getElementById('memberList');
-        const names = new Set(rawData.map(d => d.name));
-        list.innerHTML = Array.from(names).map(n => `<option value="${n}">`).join('');
-    }
-
-    // --- Detail & Delete Functionality ---
     function openDetailModal(evt) {
-        currentSelectedShiftId = evt.id;
-        const modal = document.getElementById('detailModal');
-        const content = document.getElementById('detailContent');
+        selectedShiftId = evt.id;
+        const c = document.getElementById('detailContent');
+        const noteHtml = evt.note ? `<div class="detail-note">${evt.note}</div>` : '';
         
-        content.innerHTML = `
-            <div class="detail-row">
-                <div class="detail-label">名前</div>
-                <div class="detail-value">${evt.name}</div>
-            </div>
-            <div class="detail-row">
-                <div class="detail-label">日時</div>
-                <div class="detail-value">${evt.date} / ${evt.start} - ${evt.end}</div>
-            </div>
-            <div class="detail-row">
-                <div class="detail-label">役割</div>
-                <div class="detail-value">${evt.role}</div>
-            </div>
-             <div class="detail-row">
-                <div class="detail-label">企画内容</div>
-                <div class="detail-value">${evt.title}</div>
-            </div>
-            <div class="detail-row" style="border:none">
-                <div class="detail-label">場所</div>
-                <div class="detail-value">📍 ${evt.location}</div>
-            </div>
+        c.innerHTML = `
+            <div class="detail-row"><div class="detail-label">名前</div><div class="detail-value">${evt.name}</div></div>
+            <div class="detail-row"><div class="detail-label">日時</div><div class="detail-value">${evt.date}  ${evt.start} - ${evt.end}</div></div>
+            <div class="detail-row"><div class="detail-label">役割</div><div class="detail-value">${evt.role || '-'}</div></div>
+            <div class="detail-row"><div class="detail-label">企画</div><div class="detail-value">${evt.title}</div></div>
+            <div class="detail-row"><div class="detail-label">場所</div><div class="detail-value">📍 ${evt.location || '-'}</div></div>
+            ${evt.note ? `<div class="detail-row" style="border:none"><div class="detail-label">詳細・メモ</div>${noteHtml}</div>` : ''}
         `;
+        document.getElementById('detailModal').classList.add('open');
+    }
+
+    function handleDeleteShift() {
+        if(confirm("このシフトを削除しますか？")) {
+            shifts = shifts.filter(s => s.id !== selectedShiftId);
+            saveData();
+            closeModal('detailModal');
+            renderGrid(currentTab);
+        }
+    }
+
+    // --- Member Manager ---
+    function openMemberModal() {
+        renderMemberList();
+        document.getElementById('memberModal').classList.add('open');
+    }
+
+    function renderMemberList() {
+        const c = document.getElementById('memberListContainer');
+        c.innerHTML = members.map(m => `
+            <div class="member-list-item">
+                <span>${m}</span>
+                <button class="member-remove-btn" onclick="removeMember('${m}')">×</button>
+            </div>
+        `).join('');
+    }
+
+    function handleAddMember() {
+        const val = document.getElementById('newMemberName').value.trim();
+        if(val && !members.includes(val)) {
+            members.push(val);
+            saveData();
+            document.getElementById('newMemberName').value = "";
+            renderMemberList();
+            renderGrid(currentTab);
+        }
+    }
+    
+    window.removeMember = (name) => {
+        if(confirm(`${name} をメンバーから外しますか？\n(シフトデータは残りますが表示されなくなります)`)) {
+            members = members.filter(m => m !== name);
+            saveData();
+            renderMemberList();
+            renderGrid(currentTab);
+        }
+    };
+
+    // --- Link / Drawer ---
+    function openDrawer() {
+        renderLinks();
+        document.getElementById('drawer').classList.add('open');
+        document.getElementById('drawerOverlay').classList.add('open');
+    }
+    function closeDrawer() {
+        document.getElementById('drawer').classList.remove('open');
+        document.getElementById('drawerOverlay').classList.remove('open');
+    }
+
+    function renderLinks() {
+        const c = document.getElementById('linkList');
+        c.innerHTML = links.map(l => `
+            <div class="link-item">
+                <div class="link-info">
+                    <a href="${l.url}" target="_blank">${l.title}</a>
+                    <span>${l.url}</span>
+                </div>
+                <div class="link-actions">
+                    <button onclick="openLinkModal(${l.id})">✎</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openLinkModal(id = null) {
+        const modal = document.getElementById('linkModal');
+        const delBtn = document.getElementById('deleteLinkBtn');
+        document.getElementById('linkId').value = id || "";
         
+        if(id) {
+            const l = links.find(x => x.id === id);
+            document.getElementById('linkModalTitle').innerText = "リンク編集";
+            document.getElementById('linkTitle').value = l.title;
+            document.getElementById('linkUrl').value = l.url;
+            delBtn.style.display = 'inline-block';
+            delBtn.onclick = () => handleDeleteLink(id);
+        } else {
+            document.getElementById('linkModalTitle').innerText = "リンク追加";
+            document.getElementById('linkTitle').value = "";
+            document.getElementById('linkUrl').value = "";
+            delBtn.style.display = 'none';
+        }
         modal.classList.add('open');
     }
 
-    function handleDelete() {
-        if(!currentSelectedShiftId) return;
-        if(confirm('本当に削除しますか？')) {
-            rawData = rawData.filter(d => d.id !== currentSelectedShiftId);
-            closeModal('detailModal');
-            initApp();
+    function handleLinkSubmit(e) {
+        e.preventDefault();
+        const idVal = document.getElementById('linkId').value;
+        const newL = {
+            id: idVal ? parseInt(idVal) : Date.now(),
+            title: document.getElementById('linkTitle').value,
+            url: document.getElementById('linkUrl').value
+        };
+
+        if(idVal) {
+            links = links.map(l => l.id === newL.id ? newL : l);
+        } else {
+            links.push(newL);
+        }
+        saveData();
+        closeModal('linkModal');
+        renderLinks();
+    }
+
+    function handleDeleteLink(id) {
+        if(confirm("削除しますか？")) {
+            links = links.filter(l => l.id !== id);
+            saveData();
+            closeModal('linkModal');
+            renderLinks();
         }
     }
 
-    // --- Common ---
-    window.closeModal = (id) => {
-        document.getElementById(id).classList.remove('open');
-    };
-
-    function applyFilter() {
-        const query = document.getElementById('nameFilter').value.trim().toLowerCase();
-        const headers = document.querySelectorAll('.member-header');
-        const cols = document.querySelectorAll('.member-column');
-
-        let visibleCount = 0;
-        headers.forEach(h => {
-            const isMatch = h.dataset.member.toLowerCase().includes(query);
-            if(isMatch) { h.classList.remove('hidden-col'); visibleCount++; }
-            else { h.classList.add('hidden-col'); }
-        });
-        cols.forEach(c => {
-            const isMatch = c.dataset.member.toLowerCase().includes(query);
-            if(isMatch) c.classList.remove('hidden-col');
-            else c.classList.add('hidden-col');
-        });
-        
-        document.getElementById('gridContainer').style.setProperty('--col-count', visibleCount);
-    }
-
+    // --- Helpers ---
+    window.closeModal = (id) => document.getElementById(id).classList.remove('open');
+    
     function setupTheme() {
         const btn = document.getElementById('themeToggle');
         const html = document.documentElement;
