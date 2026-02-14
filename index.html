@@ -768,4 +768,123 @@
         c.innerHTML = members.map(m => `
             <div class="member-list-item">
                 <span>${m}</span>
-                <button class=
+                <button class="member-remove-btn" onclick="removeMember('${m}')">×</button>
+            </div>
+        `).join('');
+    }
+
+    function handleAddMember() {
+        const val = document.getElementById('newMemberName').value.trim();
+        if(val && !members.includes(val)) {
+            members.push(val);
+            saveData();
+            document.getElementById('newMemberName').value = "";
+            renderMemberList();
+            renderGrid(currentTab);
+        }
+    }
+    
+    // メンバー削除ロジック（シフトも全消し）
+    window.removeMember = (name) => {
+        if(confirm(`${name} をメンバーから削除しますか？\n⚠️ このメンバーの全シフトデータも完全に削除されます。`)) {
+            members = members.filter(m => m !== name);
+            shifts = shifts.filter(s => s.name !== name); // 関連シフトも削除
+            saveData();
+            renderMemberList();
+            renderGrid(currentTab);
+        }
+    };
+
+    // --- Link / Drawer ---
+    function openDrawer() {
+        renderLinks();
+        document.getElementById('drawer').classList.add('open');
+        document.getElementById('drawerOverlay').classList.add('open');
+    }
+    function closeDrawer() {
+        document.getElementById('drawer').classList.remove('open');
+        document.getElementById('drawerOverlay').classList.remove('open');
+    }
+
+    function renderLinks() {
+        const c = document.getElementById('linkList');
+        // タイトルのみ表示
+        c.innerHTML = links.map(l => `
+            <div class="link-item">
+                <div class="link-info">
+                    <a href="${l.url}" target="_blank">${l.title}</a>
+                </div>
+                <div class="link-actions">
+                    <button onclick="openLinkModal(${l.id})">✎</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openLinkModal(id = null) {
+        const modal = document.getElementById('linkModal');
+        const delBtn = document.getElementById('deleteLinkBtn');
+        document.getElementById('linkId').value = id || "";
+        
+        if(id) {
+            const l = links.find(x => x.id === id);
+            document.getElementById('linkModalTitle').innerText = "リンク編集";
+            document.getElementById('linkTitle').value = l.title;
+            document.getElementById('linkUrl').value = l.url;
+            delBtn.style.display = 'inline-block';
+            delBtn.onclick = () => handleDeleteLink(id);
+        } else {
+            document.getElementById('linkModalTitle').innerText = "リンク追加";
+            document.getElementById('linkTitle').value = "";
+            document.getElementById('linkUrl').value = "";
+            delBtn.style.display = 'none';
+        }
+        modal.classList.add('open');
+    }
+
+    function handleLinkSubmit(e) {
+        e.preventDefault();
+        const idVal = document.getElementById('linkId').value;
+        const newL = {
+            id: idVal ? parseInt(idVal) : Date.now(),
+            title: document.getElementById('linkTitle').value,
+            url: document.getElementById('linkUrl').value
+        };
+
+        if(idVal) {
+            links = links.map(l => l.id === newL.id ? newL : l);
+        } else {
+            links.push(newL);
+        }
+        saveData();
+        closeModal('linkModal');
+        renderLinks();
+    }
+
+    function handleDeleteLink(id) {
+        if(confirm("削除しますか？")) {
+            links = links.filter(l => l.id !== id);
+            saveData();
+            closeModal('linkModal');
+            renderLinks();
+        }
+    }
+
+    window.closeModal = (id) => document.getElementById(id).classList.remove('open');
+    
+    function setupTheme() {
+        const btn = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            html.setAttribute('data-theme', 'dark');
+            btn.innerText = '☀️';
+        }
+        btn.onclick = () => {
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? '' : 'dark');
+            btn.innerText = isDark ? '🌙' : '☀️';
+        };
+    }
+</script>
+</body>
+</html>
