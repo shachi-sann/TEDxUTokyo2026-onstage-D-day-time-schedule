@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TEDx Shift Manager</title>
+    <title>TEDx Shift Manager (Online)</title>
     <style>
-        /* --- CSS Variables --- */
+        /* デザインは変更なし */
         :root {
             --ted-red: #E62B1E;
             --ted-black: #1a1a1a;
@@ -20,19 +20,16 @@
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             --overlay-bg: rgba(0, 0, 0, 0.4);
             
-            /* 1時間の高さを180px */
             --hour-height: 180px;
             --time-col-width: 50px;
             --col-min-width: 140px;
             
-            /* Roles Colors */
             --role-reception: #ffebee;
             --role-stage: #e1f5fe;
             --role-stream: #e8f5e9;
             --role-venue: #fffde7;
             --role-default: #f3e5f5;
         }
-
         [data-theme="dark"] {
             --bg-color: #121212;
             --header-bg: #1e1e1e;
@@ -44,507 +41,273 @@
             --line-sub-color: #222222;
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
             --overlay-bg: rgba(0, 0, 0, 0.7);
-            
             --role-reception: #4a2020;
             --role-stage: #203a4a;
             --role-stream: #204a25;
             --role-venue: #4a4520;
             --role-default: #34204a;
         }
-
         * { box-sizing: border-box; margin: 0; padding: 0; outline: none; -webkit-tap-highlight-color: transparent; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* --- Header --- */
-        header {
-            background: var(--header-bg);
-            padding: 10px 15px;
-            border-bottom: 1px solid var(--line-color);
-            z-index: 200;
-            flex-shrink: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 60px;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", sans-serif; background-color: var(--bg-color); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
+        header { background: var(--header-bg); padding: 10px 15px; border-bottom: 1px solid var(--line-color); z-index: 200; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; height: 60px; }
         .header-left { display: flex; align-items: center; gap: 15px; }
         .menu-btn { font-size: 1.5rem; background: none; border: none; color: var(--text-main); cursor: pointer; }
-        
         h1 { font-size: 1.1rem; font-weight: 800; margin: 0; }
         h1 span { color: var(--ted-red); }
-
-        .header-right { display: flex; gap: 12px; }
+        .header-right { display: flex; gap: 12px; align-items: center; }
         .icon-btn { background: none; border: none; cursor: pointer; font-size: 1.3rem; color: var(--text-main); position: relative; }
         
-        /* --- Tabs --- */
-        .tabs {
-            display: flex; overflow-x: auto; background: var(--header-bg);
-            border-bottom: 1px solid var(--line-color); flex-shrink: 0;
-            padding-bottom: 2px;
-        }
-        .tab {
-            padding: 12px 20px; font-size: 0.9rem; font-weight: bold; color: var(--text-sub);
-            cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap;
-            transition: color 0.2s;
-        }
+        /* Sync Indicator */
+        .status-dot { width: 10px; height: 10px; background: #ccc; border-radius: 50%; display: inline-block; }
+        .status-dot.online { background: #4CAF50; box-shadow: 0 0 5px #4CAF50; }
+
+        .tabs { display: flex; overflow-x: auto; background: var(--header-bg); border-bottom: 1px solid var(--line-color); flex-shrink: 0; padding-bottom: 2px; }
+        .tab { padding: 12px 20px; font-size: 0.9rem; font-weight: bold; color: var(--text-sub); cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap; transition: color 0.2s; }
         .tab.active { color: var(--ted-red); border-bottom-color: var(--ted-red); }
 
-        /* --- Grid Layout --- */
-        .grid-container {
-            flex-grow: 1;
-            overflow: auto;
-            position: relative;
-            background: var(--bg-color);
-            display: grid;
-            grid-template-columns: var(--time-col-width) repeat(var(--col-count, 1), minmax(var(--col-min-width), 1fr));
-            grid-template-rows: 40px 1fr;
-            overscroll-behavior-y: contain; /* バウンド制御 */
-            scroll-behavior: smooth;
-        }
-
-        /* スクロール下部の余白 */
-        .grid-container::after {
-            content: '';
-            grid-column: 1 / -1;
-            grid-row: 3;
-            height: 100px;
-        }
-
-        .corner-cell {
-            position: sticky; top: 0; left: 0; z-index: 30;
-            background: var(--header-bg);
-            border-bottom: 1px solid var(--line-color);
-            border-right: 1px solid var(--line-color);
-        }
-
-        .member-header {
-            position: sticky; top: 0; z-index: 20;
-            background: var(--header-bg);
-            border-bottom: 1px solid var(--line-color);
-            border-right: 1px solid var(--line-color);
-            display: flex; align-items: center; justify-content: center;
-            font-weight: 700; font-size: 0.9rem;
-            white-space: nowrap; overflow: hidden;
-        }
-
-        .time-sidebar {
-            grid-row: 2; grid-column: 1;
-            position: sticky; left: 0; z-index: 20;
-            background: var(--header-bg);
-            border-right: 1px solid var(--line-color);
-        }
-        .time-slot {
-            height: var(--hour-height);
-            text-align: right; padding-right: 6px;
-            font-size: 0.75rem; color: var(--text-sub);
-            font-weight: 500;
-        }
+        .grid-container { flex-grow: 1; overflow: auto; position: relative; background: var(--bg-color); display: grid; grid-template-columns: var(--time-col-width) repeat(var(--col-count, 1), minmax(var(--col-min-width), 1fr)); grid-template-rows: 40px 1fr; overscroll-behavior-y: contain; scroll-behavior: smooth; }
+        .grid-container::after { content: ''; grid-column: 1 / -1; grid-row: 3; height: 100px; }
+        .corner-cell { position: sticky; top: 0; left: 0; z-index: 30; background: var(--header-bg); border-bottom: 1px solid var(--line-color); border-right: 1px solid var(--line-color); }
+        .member-header { position: sticky; top: 0; z-index: 20; background: var(--header-bg); border-bottom: 1px solid var(--line-color); border-right: 1px solid var(--line-color); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.9rem; white-space: nowrap; overflow: hidden; }
+        .time-sidebar { grid-row: 2; grid-column: 1; position: sticky; left: 0; z-index: 20; background: var(--header-bg); border-right: 1px solid var(--line-color); }
+        .time-slot { height: var(--hour-height); text-align: right; padding-right: 6px; font-size: 0.75rem; color: var(--text-sub); font-weight: 500; }
         .time-slot span { position: relative; top: -8px; display: block; background: var(--header-bg); }
+        .member-column { grid-row: 2; position: relative; border-right: 1px solid var(--line-color); background-image: linear-gradient(var(--line-color) 1px, transparent 1px), linear-gradient(var(--line-sub-color) 1px, transparent 1px); background-size: 100% var(--hour-height), 100% calc(var(--hour-height) / 4); background-position: 0 0; }
 
-        .member-column {
-            grid-row: 2; position: relative;
-            border-right: 1px solid var(--line-color);
-            background-image: 
-                linear-gradient(var(--line-color) 1px, transparent 1px), 
-                linear-gradient(var(--line-sub-color) 1px, transparent 1px);
-            background-size: 
-                100% var(--hour-height), 
-                100% calc(var(--hour-height) / 4); /* 15分刻みの補助線 */
-            background-position: 0 0;
-        }
-
-        /* --- Shift Cards --- */
-        .shift-card {
-            position: absolute;
-            background: var(--header-bg);
-            border-radius: 6px; padding: 4px 6px;
-            box-shadow: var(--shadow);
-            border-left: 4px solid transparent;
-            font-size: 0.8rem; overflow: hidden;
-            display: flex; flex-direction: column;
-            cursor: pointer;
-            transition: transform 0.1s, box-shadow 0.1s;
-            z-index: 10;
-        }
+        .shift-card { position: absolute; background: var(--header-bg); border-radius: 6px; padding: 4px 6px; box-shadow: var(--shadow); border-left: 4px solid transparent; font-size: 0.8rem; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; z-index: 10; }
         .shift-card:active { transform: scale(0.98); }
-        
         .role-reception { background: var(--role-reception); border-left-color: #d32f2f; }
         .role-stage { background: var(--role-stage); border-left-color: #0288d1; }
         .role-stream { background: var(--role-stream); border-left-color: #388e3c; }
         .role-venue { background: var(--role-venue); border-left-color: #fbc02d; }
         .role-other { background: var(--role-default); border-left-color: #7b1fa2; }
-
-        .card-role { 
-            font-size: 0.65rem; font-weight: bold; opacity: 0.8;
-            display: inline-block; padding: 1px 4px; background: rgba(255,255,255,0.6); border-radius: 3px;
-            margin-bottom: 2px; align-self: flex-start;
-        }
+        .card-role { font-size: 0.65rem; font-weight: bold; opacity: 0.8; display: inline-block; padding: 1px 4px; background: rgba(255,255,255,0.6); border-radius: 3px; margin-bottom: 2px; align-self: flex-start; }
         .card-time { font-size: 0.65rem; color: var(--text-sub); font-family: monospace; line-height: 1; margin-bottom: 2px;}
         .card-title { font-weight: 700; font-size: 0.8rem; line-height: 1.1; margin-bottom: auto;}
-        
-        .has-note::after {
-            content: '📝';
-            position: absolute; top: 4px; right: 4px;
-            font-size: 0.7rem; opacity: 0.7;
-        }
+        .has-note::after { content: '📝'; position: absolute; top: 4px; right: 4px; font-size: 0.7rem; opacity: 0.7; }
 
-        /* --- Drawer Menu (Links) --- */
-        .drawer-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); z-index: 300;
-            opacity: 0; visibility: hidden; transition: opacity 0.3s;
-        }
-        .drawer {
-            position: fixed; top: 0; left: 0; width: 85%; max-width: 300px; height: 100%;
-            background: var(--drawer-bg); z-index: 301;
-            transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-            display: flex; flex-direction: column;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
-        }
+        .drawer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 300; opacity: 0; visibility: hidden; transition: opacity 0.3s; }
+        .drawer { position: fixed; top: 0; left: 0; width: 85%; max-width: 300px; height: 100%; background: var(--drawer-bg); z-index: 301; transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; box-shadow: 2px 0 10px rgba(0,0,0,0.1); }
         .drawer.open { transform: translateX(0); }
         .drawer-overlay.open { opacity: 1; visibility: visible; }
-
         .drawer-header { padding: 20px; border-bottom: 1px solid var(--line-color); display: flex; justify-content: space-between; align-items: center; }
         .drawer-title { font-weight: bold; font-size: 1.2rem; }
         .drawer-content { flex: 1; overflow-y: auto; padding: 20px; }
-        
-        /* リンクのスタイル変更 */
-        .link-item { 
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 15px 0; border-bottom: 1px solid var(--line-sub-color);
-        }
-        .link-info a { 
-            color: var(--text-main); text-decoration: none; 
-            font-weight: 600; display: block; font-size: 1rem;
-        }
-        /* URL非表示のため、hover時に下線など */
+        .link-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--line-sub-color); }
+        .link-info a { color: var(--text-main); text-decoration: none; font-weight: 600; display: block; font-size: 1rem; }
         .link-info a:hover { color: var(--ted-red); }
-        
         .link-actions button { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 5px; color: var(--text-sub); }
-
         .drawer-footer { padding: 20px; border-top: 1px solid var(--line-color); }
 
-        /* --- Modals --- */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--overlay-bg); z-index: 500;
-            display: none; align-items: flex-end; justify-content: center;
-        }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--overlay-bg); z-index: 500; display: none; align-items: flex-end; justify-content: center; padding-bottom: 0; }
         .modal-overlay.open { display: flex; animation: fadeIn 0.2s; }
-        @media(min-width: 600px) {
-            .modal-overlay { align-items: center; }
-            .modal-content { border-radius: 12px !important; width: 450px !important; max-height: 90vh; }
-        }
-        .modal-content {
-            background: var(--modal-bg); width: 100%; max-width: 600px;
-            border-radius: 20px 20px 0 0; padding: 25px;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
-            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            max-height: 85vh; overflow-y: auto;
-        }
-
+        @media(min-width: 600px) { .modal-overlay { align-items: center; padding-bottom: 0; } .modal-content { border-radius: 12px !important; width: 450px !important; max-height: 90vh; } }
+        .modal-content { background: var(--modal-bg); width: 100%; max-width: 600px; border-radius: 20px 20px 0 0; padding: 25px; box-shadow: 0 -4px 20px rgba(0,0,0,0.2); animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); max-height: 85vh; overflow-y: auto; }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 1.2rem; font-weight: bold; }
         .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-sub); }
 
-        /* Forms */
         .form-group { margin-bottom: 15px; }
         .form-label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 5px; }
-        .form-input, .form-select, .form-textarea {
-            width: 100%; padding: 12px; border-radius: 8px;
-            border: 1px solid var(--line-color); background: var(--bg-color); color: var(--text-main);
-            font-size: 1rem; font-family: inherit;
-        }
+        .form-input, .form-select, .form-textarea { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--line-color); background: var(--bg-color); color: var(--text-main); font-size: 1rem; font-family: inherit; }
         .form-textarea { min-height: 80px; resize: vertical; }
         .form-row { display: flex; gap: 10px; }
         .form-row > div { flex: 1; }
+        .btn-primary { width: 100%; padding: 14px; background: var(--ted-red); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+        .btn-secondary { width: 100%; padding: 12px; background: var(--line-sub-color); color: var(--text-main); border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .btn-delete { width: 100%; padding: 14px; background: transparent; color: #ff4444; border: 1px solid #ff4444; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
 
-        .btn-primary {
-            width: 100%; padding: 14px; background: var(--ted-red); color: white;
-            border: none; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer;
-        }
-        .btn-secondary {
-            width: 100%; padding: 12px; background: var(--line-sub-color); color: var(--text-main);
-            border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
-        }
-        .btn-delete {
-            width: 100%; padding: 14px; background: transparent; color: #ff4444;
-            border: 1px solid #ff4444; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
-        }
-
-        /* Member List Styling */
-        .member-list-item {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px; border-bottom: 1px solid var(--line-sub-color);
-        }
+        .member-list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid var(--line-sub-color); }
         .member-remove-btn { color: #ff4444; font-size: 1.2rem; background: none; border: none; cursor: pointer; }
 
-        /* FAB */
-        .fab {
-            position: fixed; bottom: 30px; right: 25px;
-            width: 60px; height: 60px; border-radius: 50%;
-            background: var(--ted-red); color: white;
-            border: none; box-shadow: 0 4px 15px rgba(230, 43, 30, 0.4);
-            font-size: 2rem; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; z-index: 100; transition: transform 0.2s;
-        }
+        .fab { position: fixed; bottom: 30px; right: 25px; width: 60px; height: 60px; border-radius: 50%; background: var(--ted-red); color: white; border: none; box-shadow: 0 4px 15px rgba(230, 43, 30, 0.4); font-size: 2rem; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 100; transition: transform 0.2s; }
         .fab:active { transform: scale(0.9); }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         .hidden-col { display: none; }
-
-        /* Detail View */
         .detail-row { margin-bottom: 12px; border-bottom: 1px solid var(--line-color); padding-bottom: 8px; }
         .detail-label { font-size: 0.8rem; color: var(--text-sub); }
         .detail-value { font-size: 1.1rem; font-weight: 500; margin-top: 4px; white-space: pre-wrap; }
         .detail-note { background: var(--line-sub-color); padding: 10px; border-radius: 8px; font-size: 0.95rem; margin-top: 5px; }
-
     </style>
 </head>
 <body>
 
-<!-- Header -->
 <header>
     <div class="header-left">
         <button class="menu-btn" id="menuBtn">≡</button>
         <h1><span>TEDx</span> Shift</h1>
     </div>
     <div class="header-right">
+        <div class="status-dot" id="statusDot" title="Disconnected"></div>
         <button class="icon-btn" id="memberManageBtn" title="メンバー管理">👤</button>
         <button class="icon-btn" id="themeToggle" title="ダークモード">🌙</button>
     </div>
 </header>
 
-<!-- Date Tabs -->
 <div class="tabs" id="dateTabs"></div>
-
-<!-- Main Grid -->
 <div class="grid-container" id="gridContainer">
     <div class="corner-cell"></div>
-    <!-- Grid Content injected by JS -->
 </div>
-
-<!-- FAB -->
 <button class="fab" id="addBtn" aria-label="Add Shift">＋</button>
 
-<!-- Drawer: Link Collection -->
 <div class="drawer-overlay" id="drawerOverlay"></div>
 <div class="drawer" id="drawer">
-    <div class="drawer-header">
-        <span class="drawer-title">🔗 リンク集</span>
-        <button class="close-btn" id="closeDrawer">×</button>
-    </div>
-    <div class="drawer-content" id="linkList">
-        <!-- Links injected here -->
-    </div>
-    <div class="drawer-footer">
-        <button class="btn-secondary" id="addLinkBtn">+ リンクを追加</button>
-        <div style="margin-top:15px; text-align:center;">
-             <button class="icon-btn" id="resetBtn" title="全データリセット" style="font-size:0.8rem; opacity:0.6;">🔄 リセット</button>
-        </div>
-    </div>
+    <div class="drawer-header"><span class="drawer-title">🔗 リンク集</span><button class="close-btn" id="closeDrawer">×</button></div>
+    <div class="drawer-content" id="linkList"></div>
+    <div class="drawer-footer"><button class="btn-secondary" id="addLinkBtn">+ リンクを追加</button></div>
 </div>
 
-<!-- Modal: Add/Edit Shift -->
 <div class="modal-overlay" id="shiftModal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title" id="shiftModalTitle">シフト追加</h2>
-            <button class="close-btn" onclick="closeModal('shiftModal')">×</button>
-        </div>
-        <form id="shiftForm">
-            <input type="hidden" id="shiftId">
-            <div class="form-group">
-                <label class="form-label">日付</label>
-                <select id="shiftDate" class="form-select" required></select>
-            </div>
-            <div class="form-group">
-                <label class="form-label">名前</label>
-                <select id="shiftName" class="form-select" required></select>
-                <div style="text-align:right; margin-top:5px;">
-                    <a href="#" id="quickAddMember" style="font-size:0.8rem; color:var(--ted-red);">+ メンバー追加</a>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">開始</label>
-                    <input type="time" id="shiftStart" class="form-input" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">終了</label>
-                    <input type="time" id="shiftEnd" class="form-input" required>
-                </div>
-            </div>
-            <div class="form-group">
-                <label class="form-label">役割 (入力)</label>
-                <input type="text" id="shiftRole" class="form-input" placeholder="例: 受付, 配信" list="roleList">
-                <datalist id="roleList">
-                    <option value="受付">
-                    <option value="登壇補助">
-                    <option value="配信">
-                    <option value="設営">
-                    <option value="アテンド">
-                </datalist>
-            </div>
-            <div class="form-group">
-                <label class="form-label">企画名 / タスク</label>
-                <input type="text" id="shiftTitle" class="form-input" placeholder="例: 来場者対応" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">場所</label>
-                <input type="text" id="shiftLocation" class="form-input" placeholder="例: エントランス">
-            </div>
-            <div class="form-group">
-                <label class="form-label">詳細・メモ (タップ時のみ表示)</label>
-                <textarea id="shiftNote" class="form-textarea" placeholder="詳細な手順や連絡事項など..."></textarea>
-            </div>
+        <div class="modal-header"><h2 class="modal-title" id="shiftModalTitle">シフト追加</h2><button class="close-btn" onclick="closeModal('shiftModal')">×</button></div>
+        <form id="shiftForm"><input type="hidden" id="shiftId">
+            <div class="form-group"><label class="form-label">日付</label><select id="shiftDate" class="form-select" required></select></div>
+            <div class="form-group"><label class="form-label">名前</label><select id="shiftName" class="form-select" required></select><div style="text-align:right; margin-top:5px;"><a href="#" id="quickAddMember" style="font-size:0.8rem; color:var(--ted-red);">+ メンバー追加</a></div></div>
+            <div class="form-row"><div class="form-group"><label class="form-label">開始</label><input type="time" id="shiftStart" class="form-input" required></div><div class="form-group"><label class="form-label">終了</label><input type="time" id="shiftEnd" class="form-input" required></div></div>
+            <div class="form-group"><label class="form-label">役割 (入力)</label><input type="text" id="shiftRole" class="form-input" placeholder="例: 受付, 配信" list="roleList"><datalist id="roleList"><option value="受付"><option value="登壇補助"><option value="配信"><option value="設営"><option value="アテンド"></datalist></div>
+            <div class="form-group"><label class="form-label">企画名 / タスク</label><input type="text" id="shiftTitle" class="form-input" placeholder="例: 来場者対応" required></div>
+            <div class="form-group"><label class="form-label">場所</label><input type="text" id="shiftLocation" class="form-input" placeholder="例: エントランス"></div>
+            <div class="form-group"><label class="form-label">詳細・メモ (タップ時のみ表示)</label><textarea id="shiftNote" class="form-textarea" placeholder="詳細な手順や連絡事項など..."></textarea></div>
             <button type="submit" class="btn-primary">保存する</button>
         </form>
     </div>
 </div>
 
-<!-- Modal: Shift Detail -->
 <div class="modal-overlay" id="detailModal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">シフト詳細</h2>
-            <button class="close-btn" onclick="closeModal('detailModal')">×</button>
-        </div>
+        <div class="modal-header"><h2 class="modal-title">シフト詳細</h2><button class="close-btn" onclick="closeModal('detailModal')">×</button></div>
         <div id="detailContent"></div>
-        <div class="form-row" style="margin-top:20px;">
-            <button class="btn-secondary" id="editShiftBtn" style="margin-top:0;">編集</button>
-            <button class="btn-delete" id="deleteShiftBtn" style="margin-top:0; border:none; color:#ff4444;">削除</button>
-        </div>
+        <div class="form-row" style="margin-top:20px;"><button class="btn-secondary" id="editShiftBtn" style="margin-top:0;">編集</button><button class="btn-delete" id="deleteShiftBtn" style="margin-top:0; border:none; color:#ff4444;">削除</button></div>
     </div>
 </div>
 
-<!-- Modal: Member Manager -->
 <div class="modal-overlay" id="memberModal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title">メンバー管理</h2>
-            <button class="close-btn" onclick="closeModal('memberModal')">×</button>
-        </div>
-        <div class="form-group" style="display:flex; gap:10px;">
-            <input type="text" id="newMemberName" class="form-input" placeholder="新しいメンバー名">
-            <button class="btn-primary" id="addNewMemberBtn" style="width:auto;">追加</button>
-        </div>
-        <div id="memberListContainer" style="max-height:300px; overflow-y:auto; border-top:1px solid var(--line-color);">
-            <!-- Members injected -->
-        </div>
+        <div class="modal-header"><h2 class="modal-title">メンバー管理</h2><button class="close-btn" onclick="closeModal('memberModal')">×</button></div>
+        <div class="form-group" style="display:flex; gap:10px;"><input type="text" id="newMemberName" class="form-input" placeholder="新しいメンバー名"><button class="btn-primary" id="addNewMemberBtn" style="width:auto;">追加</button></div>
+        <div id="memberListContainer" style="max-height:300px; overflow-y:auto; border-top:1px solid var(--line-color);"></div>
     </div>
 </div>
 
-<!-- Modal: Link Add/Edit -->
 <div class="modal-overlay" id="linkModal">
     <div class="modal-content">
-        <div class="modal-header">
-            <h2 class="modal-title" id="linkModalTitle">リンク追加</h2>
-            <button class="close-btn" onclick="closeModal('linkModal')">×</button>
-        </div>
-        <form id="linkForm">
-            <input type="hidden" id="linkId">
-            <div class="form-group">
-                <label class="form-label">タイトル</label>
-                <input type="text" id="linkTitle" class="form-input" required>
-            </div>
-            <div class="form-group">
-                <label class="form-label">URL</label>
-                <input type="url" id="linkUrl" class="form-input" placeholder="https://..." required>
-            </div>
-            <button type="submit" class="btn-primary">保存</button>
-            <button type="button" class="btn-delete" id="deleteLinkBtn" style="display:none;">削除</button>
+        <div class="modal-header"><h2 class="modal-title" id="linkModalTitle">リンク追加</h2><button class="close-btn" onclick="closeModal('linkModal')">×</button></div>
+        <form id="linkForm"><input type="hidden" id="linkId">
+            <div class="form-group"><label class="form-label">タイトル</label><input type="text" id="linkTitle" class="form-input" required></div>
+            <div class="form-group"><label class="form-label">URL</label><input type="url" id="linkUrl" class="form-input" placeholder="https://..." required></div>
+            <button type="submit" class="btn-primary">保存</button><button type="button" class="btn-delete" id="deleteLinkBtn" style="display:none;">削除</button>
         </form>
     </div>
 </div>
 
-<script>
-    // --- Keys & Defaults ---
-    const STORAGE_SHIFTS = 'tedx_shifts';
-    const STORAGE_MEMBERS = 'tedx_members';
-    const STORAGE_LINKS = 'tedx_links';
+<script type="module">
+    // --- Firebase Setup ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-    // 日付設定
+    // 【重要】ここにFirebaseの設定を貼り付けてください
+const firebaseConfig = {
+  apiKey: "AIzaSyB-1lY-_j6FHQs_NEaIhbQyZN18ko6cCxg",
+  authDomain: "tedxutokyo-on-shift.firebaseapp.com",
+  databaseURL: "https://tedxutokyo-on-shift-default-rtdb.firebaseio.com",
+  projectId: "tedxutokyo-on-shift",
+  storageBucket: "tedxutokyo-on-shift.firebasestorage.app",
+  messagingSenderId: "62007918306",
+  appId: "1:62007918306:web:72a4ed8b238947a1cbe8bb"
+};
+
+    // Firebase 初期化
+    let app, db;
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getDatabase(app);
+    } catch (e) {
+        console.error("Firebase config is missing or invalid.");
+        alert("Firebaseの設定がされていません。index.html内のfirebaseConfigを編集してください。");
+    }
+
+    // --- State & Constants ---
     const DATE_LABELS = { "Day1": "4/18", "Day2": "4/19" };
     const DATES = ["4/18", "4/19"];
+    
+    // Default Data (初回DB空の場合に使用)
+    const defaultMembers = ["Member1"];
+    const defaultShifts = [];
+    const defaultLinks = [];
 
-    // 初期データ
-    const defaultShifts = [
-        { id: 1, date: "4/18", name: "山田", role: "受付", title: "来場者受付", start: "09:30", end: "12:00", location: "エントランス", note: "笑顔で対応すること" },
-        { id: 2, date: "4/18", name: "鈴木", role: "登壇補助", title: "Session 1", start: "10:00", end: "11:30", location: "ホールA", note: "" },
-        { id: 3, date: "4/18", name: "佐藤", role: "配信", title: "CMテスト", start: "09:55", end: "10:05", location: "配信卓", note: "" }
-    ];
-    const defaultMembers = ["山田", "鈴木", "佐藤", "田中", "高橋"];
-    const defaultLinks = [
-        { id: 1, title: "TEDx 公式サイト", url: "https://www.ted.com" },
-        { id: 2, title: "マニュアルDrive", url: "#" }
-    ];
-
-    // --- State ---
     let shifts = [];
     let members = [];
     let links = [];
-    
-    // Config
+
     const START_HOUR = 7;
     const END_HOUR = 21;
     const HOUR_HEIGHT = 180;
-
     let currentTab = "4/18";
     let selectedShiftId = null;
 
-    // --- Init ---
+    // --- Sync Logic ---
+    function initSync() {
+        if (!db) return;
+
+        const statusDot = document.getElementById('statusDot');
+
+        // Shifts Sync
+        onValue(ref(db, 'shifts'), (snapshot) => {
+            const val = snapshot.val();
+            shifts = val || [];
+            renderGrid(currentTab);
+            statusDot.classList.add('online');
+            statusDot.title = "Online";
+        });
+
+        // Members Sync
+        onValue(ref(db, 'members'), (snapshot) => {
+            const val = snapshot.val();
+            members = val || [...defaultMembers]; // 空ならデフォルト
+            renderGrid(currentTab);
+        });
+
+        // Links Sync
+        onValue(ref(db, 'links'), (snapshot) => {
+            const val = snapshot.val();
+            links = val || [];
+            if(document.getElementById('drawer').classList.contains('open')) {
+                renderLinks();
+            }
+        });
+    }
+
+    // --- App Init ---
     document.addEventListener('DOMContentLoaded', () => {
-        loadData();
-        initApp();
+        setupTabs();
         setupEvents();
+        setupTheme();
+        initSync();
     });
 
-    function loadData() {
-        const s = localStorage.getItem(STORAGE_SHIFTS);
-        shifts = s ? JSON.parse(s) : [...defaultShifts];
-
-        const m = localStorage.getItem(STORAGE_MEMBERS);
-        members = m ? JSON.parse(m) : [...defaultMembers];
-        
-        // シフトにある名前がメンバーリストになければ追加
-        shifts.forEach(sh => { if(!members.includes(sh.name)) members.push(sh.name); });
-        
-        const l = localStorage.getItem(STORAGE_LINKS);
-        links = l ? JSON.parse(l) : [...defaultLinks];
+    // --- Data Operations (Write to Firebase) ---
+    function updateShifts(newShifts) {
+        set(ref(db, 'shifts'), newShifts);
     }
-
-    function saveData() {
-        localStorage.setItem(STORAGE_SHIFTS, JSON.stringify(shifts));
-        localStorage.setItem(STORAGE_MEMBERS, JSON.stringify(members));
-        localStorage.setItem(STORAGE_LINKS, JSON.stringify(links));
+    function updateMembers(newMembers) {
+        set(ref(db, 'members'), newMembers);
     }
-
-    function initApp() {
-        setupTabs();
-        renderGrid(currentTab);
-        setupTheme();
+    function updateLinks(newLinks) {
+        set(ref(db, 'links'), newLinks);
     }
 
     // --- Grid Render ---
     function renderGrid(date) {
         const container = document.getElementById('gridContainer');
         container.innerHTML = '<div class="corner-cell"></div>';
-
+        
         const displayMembers = [...members].sort();
         container.style.setProperty('--col-count', displayMembers.length);
 
-        // 1. Headers
+        // Headers
         displayMembers.forEach((member, index) => {
             const h = document.createElement('div');
             h.className = 'member-header';
@@ -553,7 +316,7 @@
             container.appendChild(h);
         });
 
-        // 2. Time Sidebar
+        // Time Sidebar
         const sidebar = document.createElement('div');
         sidebar.className = 'time-sidebar';
         sidebar.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
@@ -565,9 +328,8 @@
         }
         container.appendChild(sidebar);
 
-        // 3. Columns & Cards
+        // Cards
         const daysShifts = shifts.filter(s => s.date === date);
-
         displayMembers.forEach((member, index) => {
             const col = document.createElement('div');
             col.className = 'member-column';
@@ -589,25 +351,19 @@
         const el = document.createElement('div');
         el.className = `shift-card ${getRoleClass(evt.role)}`;
         if(evt.note && evt.note.trim().length > 0) el.classList.add('has-note');
-
+        
         const top = getTopPosition(evt.start);
         const height = getDurationHeight(evt.start, evt.end);
-
         el.style.top = `${top}px`;
         el.style.height = `${Math.max(height, 30)}px`;
         el.style.width = `calc(${evt.widthPct}% - 4px)`;
         el.style.left = `calc(${evt.leftPct}% + 2px)`;
-        
-        el.innerHTML = `
-            <span class="card-role">${evt.role || '役割なし'}</span>
-            <div class="card-time">${evt.start}-${evt.end}</div>
-            <div class="card-title">${evt.title}</div>
-        `;
+        el.innerHTML = `<span class="card-role">${evt.role || '役割なし'}</span><div class="card-time">${evt.start}-${evt.end}</div><div class="card-title">${evt.title}</div>`;
         el.onclick = () => openDetailModal(evt);
         return el;
     }
 
-    // --- Logic ---
+    // --- Helpers ---
     function packEvents(events) {
         const sorted = [...events].sort((a,b) => timeToMinutes(a.start) - timeToMinutes(b.start));
         const cols = [];
@@ -624,7 +380,6 @@
         sorted.forEach(e => { e.widthPct = 100/max; e.leftPct = (100/max)*e.colIndex; });
         return sorted;
     }
-
     function timeToMinutes(s) { const [h,m] = s.split(':').map(Number); return h*60+m; }
     function getTopPosition(s) { return ((timeToMinutes(s) - START_HOUR*60)/60)*HOUR_HEIGHT; }
     function getDurationHeight(s,e) { return ((timeToMinutes(e)-timeToMinutes(s))/60)*HOUR_HEIGHT; }
@@ -643,32 +398,29 @@
     }
     window.switchTab = (d) => { currentTab = d; setupTabs(); renderGrid(d); };
 
-    // --- Events ---
+    // --- Events & Handlers ---
     function setupEvents() {
+        // Shift
         document.getElementById('addBtn').onclick = () => openShiftModal();
         document.getElementById('shiftForm').onsubmit = handleShiftSubmit;
         document.getElementById('editShiftBtn').onclick = () => { closeModal('detailModal'); openShiftModal(selectedShiftId); };
         document.getElementById('deleteShiftBtn').onclick = handleDeleteShift;
         
+        // Member
         document.getElementById('memberManageBtn').onclick = openMemberModal;
         document.getElementById('addNewMemberBtn').onclick = handleAddMember;
         document.getElementById('quickAddMember').onclick = (e) => { e.preventDefault(); closeModal('shiftModal'); openMemberModal(); };
 
+        // Drawer
         document.getElementById('menuBtn').onclick = openDrawer;
         document.getElementById('closeDrawer').onclick = closeDrawer;
         document.getElementById('drawerOverlay').onclick = closeDrawer;
         document.getElementById('addLinkBtn').onclick = () => openLinkModal();
         document.getElementById('linkForm').onsubmit = handleLinkSubmit;
         document.getElementById('deleteLinkBtn').onclick = handleDeleteLink;
-
-        document.getElementById('resetBtn').onclick = () => {
-            if(confirm("全てのデータを初期化しますか？")) {
-                localStorage.clear(); location.reload();
-            }
-        };
     }
 
-    // --- Shift Operations ---
+    // --- Shift Logic ---
     function openShiftModal(editId = null) {
         const modal = document.getElementById('shiftModal');
         const title = document.getElementById('shiftModalTitle');
@@ -721,22 +473,21 @@
             note: document.getElementById('shiftNote').value
         };
 
+        let nextShifts;
         if(idVal) {
-            shifts = shifts.map(s => s.id === newDat.id ? newDat : s);
+            nextShifts = shifts.map(s => s.id === newDat.id ? newDat : s);
         } else {
-            shifts.push(newDat);
+            nextShifts = [...shifts, newDat];
         }
-        saveData();
+        updateShifts(nextShifts);
         closeModal('shiftModal');
         if(newDat.date !== currentTab) switchTab(newDat.date);
-        else renderGrid(currentTab);
     }
 
     function openDetailModal(evt) {
         selectedShiftId = evt.id;
         const c = document.getElementById('detailContent');
         const noteHtml = evt.note ? `<div class="detail-note">${evt.note}</div>` : '';
-        
         c.innerHTML = `
             <div class="detail-row"><div class="detail-label">名前</div><div class="detail-value">${evt.name}</div></div>
             <div class="detail-row"><div class="detail-label">日時</div><div class="detail-value">${evt.date}  ${evt.start} - ${evt.end}</div></div>
@@ -750,82 +501,68 @@
 
     function handleDeleteShift() {
         if(confirm("このシフトを削除しますか？")) {
-            shifts = shifts.filter(s => s.id !== selectedShiftId);
-            saveData();
+            const nextShifts = shifts.filter(s => s.id !== selectedShiftId);
+            updateShifts(nextShifts);
             closeModal('detailModal');
-            renderGrid(currentTab);
         }
     }
 
-    // --- Member Manager ---
+    // --- Member Logic ---
     function openMemberModal() {
         renderMemberList();
         document.getElementById('memberModal').classList.add('open');
     }
-
     function renderMemberList() {
         const c = document.getElementById('memberListContainer');
         c.innerHTML = members.map(m => `
-            <div class="member-list-item">
-                <span>${m}</span>
-                <button class="member-remove-btn" onclick="removeMember('${m}')">×</button>
-            </div>
+            <div class="member-list-item"><span>${m}</span><button class="member-remove-btn" data-name="${m}">×</button></div>
         `).join('');
+        // Add event listeners to dynamic buttons
+        document.querySelectorAll('.member-remove-btn').forEach(btn => {
+            btn.onclick = () => removeMember(btn.dataset.name);
+        });
     }
-
     function handleAddMember() {
         const val = document.getElementById('newMemberName').value.trim();
         if(val && !members.includes(val)) {
-            members.push(val);
-            saveData();
+            updateMembers([...members, val]);
             document.getElementById('newMemberName').value = "";
-            renderMemberList();
-            renderGrid(currentTab);
+            // Render update comes from DB listener
+            renderMemberList(); // Optimistic update
         }
     }
-    
-    // メンバー削除ロジック（シフトも全消し）
-    window.removeMember = (name) => {
+    function removeMember(name) {
         if(confirm(`${name} をメンバーから削除しますか？\n⚠️ このメンバーの全シフトデータも完全に削除されます。`)) {
-            members = members.filter(m => m !== name);
-            shifts = shifts.filter(s => s.name !== name); // 関連シフトも削除
-            saveData();
+            const nextMembers = members.filter(m => m !== name);
+            const nextShifts = shifts.filter(s => s.name !== name);
+            // Both updates
+            updateMembers(nextMembers);
+            updateShifts(nextShifts);
             renderMemberList();
-            renderGrid(currentTab);
         }
-    };
-
-    // --- Link / Drawer ---
-    function openDrawer() {
-        renderLinks();
-        document.getElementById('drawer').classList.add('open');
-        document.getElementById('drawerOverlay').classList.add('open');
-    }
-    function closeDrawer() {
-        document.getElementById('drawer').classList.remove('open');
-        document.getElementById('drawerOverlay').classList.remove('open');
     }
 
+    // --- Link Logic ---
+    function openDrawer() { renderLinks(); document.getElementById('drawer').classList.add('open'); document.getElementById('drawerOverlay').classList.add('open'); }
+    function closeDrawer() { document.getElementById('drawer').classList.remove('open'); document.getElementById('drawerOverlay').classList.remove('open'); }
+    
     function renderLinks() {
         const c = document.getElementById('linkList');
-        // タイトルのみ表示
         c.innerHTML = links.map(l => `
             <div class="link-item">
-                <div class="link-info">
-                    <a href="${l.url}" target="_blank">${l.title}</a>
-                </div>
-                <div class="link-actions">
-                    <button onclick="openLinkModal(${l.id})">✎</button>
-                </div>
+                <div class="link-info"><a href="${l.url}" target="_blank">${l.title}</a></div>
+                <div class="link-actions"><button onclick="window.editLink(${l.id})">✎</button></div>
             </div>
         `).join('');
     }
+    
+    // Expose editLink to window for onclick handler in innerHTML
+    window.editLink = (id) => openLinkModal(id);
 
     function openLinkModal(id = null) {
         const modal = document.getElementById('linkModal');
         const delBtn = document.getElementById('deleteLinkBtn');
         document.getElementById('linkId').value = id || "";
-        
         if(id) {
             const l = links.find(x => x.id === id);
             document.getElementById('linkModalTitle').innerText = "リンク編集";
@@ -845,40 +582,27 @@
     function handleLinkSubmit(e) {
         e.preventDefault();
         const idVal = document.getElementById('linkId').value;
-        const newL = {
-            id: idVal ? parseInt(idVal) : Date.now(),
-            title: document.getElementById('linkTitle').value,
-            url: document.getElementById('linkUrl').value
-        };
-
-        if(idVal) {
-            links = links.map(l => l.id === newL.id ? newL : l);
-        } else {
-            links.push(newL);
-        }
-        saveData();
+        const newL = { id: idVal ? parseInt(idVal) : Date.now(), title: document.getElementById('linkTitle').value, url: document.getElementById('linkUrl').value };
+        let nextLinks;
+        if(idVal) nextLinks = links.map(l => l.id === newL.id ? newL : l);
+        else nextLinks = [...links, newL];
+        updateLinks(nextLinks);
         closeModal('linkModal');
-        renderLinks();
     }
 
     function handleDeleteLink(id) {
         if(confirm("削除しますか？")) {
-            links = links.filter(l => l.id !== id);
-            saveData();
+            const nextLinks = links.filter(l => l.id !== id);
+            updateLinks(nextLinks);
             closeModal('linkModal');
-            renderLinks();
         }
     }
 
     window.closeModal = (id) => document.getElementById(id).classList.remove('open');
-    
     function setupTheme() {
         const btn = document.getElementById('themeToggle');
         const html = document.documentElement;
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            html.setAttribute('data-theme', 'dark');
-            btn.innerText = '☀️';
-        }
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) html.setAttribute('data-theme', 'dark');
         btn.onclick = () => {
             const isDark = html.getAttribute('data-theme') === 'dark';
             html.setAttribute('data-theme', isDark ? '' : 'dark');
