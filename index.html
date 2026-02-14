@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEDx Shift Manager</title>
+    <style>
+        /* --- CSS Variables --- */
+        :root {
+            --ted-red: #E62B1E;
+            --bg-color: #f8f9fa;
+            --header-bg: #ffffff;
+            --text-main: #1a1a1a;
+            --text-sub: #666666;
+            --line-color: #e0e0e0;
+            --line-sub-color: #eeeeee;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            
+            --hour-height: 120px; /* 5分=10px */
+            --time-col-width: 50px;
+            --col-min-width: 140px; /* 1人分の列幅 */
+            
+            --role-reception: #ffebee;
+            --role-stage: #e1f5fe;
+            --role-stream: #e8f5e9;
+            --role-venue: #fffde7;
+            --role-default: #f3e5f5;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121212;
+            --header-bg: #1e1e1e;
+            --text-main: #ffffff;
+            --text-sub: #aaaaaa;
+            --line-color: #333333;
+            --line-sub-color: #222222;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            
+            --role-reception: #4a2020;
+            --role-stage: #203a4a;
+            --role-stream: #204a25;
+            --role-venue: #4a4520;
+            --role-default: #34204a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- Header UI --- */
+        header {
+            background: var(--header-bg);
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--line-color);
+            z-index: 200;
+        }
+        .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        h1 { font-size: 1.1rem; font-weight: 800; }
+        h1 span { color: var(--ted-red); }
+        .theme-toggle { background: none; border: none; cursor: pointer; font-size: 1.2rem; }
+        
+        .controls { display: flex; gap: 8px; }
+        .filter-input {
+            width: 100%; padding: 8px 12px; border-radius: 6px;
+            border: 1px solid var(--line-color); background: var(--bg-color); color: var(--text-main);
+        }
+
+        /* --- Date Tabs --- */
+        .tabs {
+            display: flex; overflow-x: auto; background: var(--header-bg);
+            border-bottom: 1px solid var(--line-color); flex-shrink: 0;
+        }
+        .tab {
+            padding: 10px 20px; font-size: 0.9rem; font-weight: bold; color: var(--text-sub);
+            cursor: pointer; border-bottom: 3px solid transparent; white-space: nowrap;
+        }
+        .tab.active { color: var(--ted-red); border-bottom-color: var(--ted-red); }
+
+        /* --- Grid Layout --- */
+        .grid-container {
+            flex-grow: 1;
+            overflow: auto; /* 両方向スクロール */
+            position: relative;
+            background: var(--bg-color);
+            display: grid;
+            /* 左端（時間） + メンバー数分の列（JSで設定） */
+            grid-template-columns: var(--time-col-width) repeat(var(--col-count, 1), minmax(var(--col-min-width), 1fr));
+            /* ヘッダー行 + ボディ行 */
+            grid-template-rows: 40px 1fr; 
+        }
+
+        /* 左上の角（固定） */
+        .corner-cell {
+            position: sticky; top: 0; left: 0; z-index: 30;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--line-color);
+            border-right: 1px solid var(--line-color);
+        }
+
+        /* メンバー名ヘッダー（上部固定） */
+        .member-header {
+            position: sticky; top: 0; z-index: 20;
+            background: var(--header-bg);
+            border-bottom: 1px solid var(--line-color);
+            border-right: 1px solid var(--line-color);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.9rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        /* 時間軸（左側固定） */
+        .time-sidebar {
+            grid-row: 2; grid-column: 1;
+            position: sticky; left: 0; z-index: 20;
+            background: var(--header-bg);
+            border-right: 1px solid var(--line-color);
+        }
+        .time-slot {
+            height: var(--hour-height);
+            text-align: right; padding-right: 5px;
+            font-size: 0.7rem; color: var(--text-sub);
+            position: relative;
+        }
+        .time-slot span { position: relative; top: -6px; display: block; background: var(--header-bg); }
+
+        /* メインエリア（列ごと） */
+        .member-column {
+            grid-row: 2;
+            position: relative;
+            border-right: 1px solid var(--line-color);
+            /* グリッド背景 */
+            background-image: 
+                linear-gradient(var(--line-color) 1px, transparent 1px),
+                linear-gradient(var(--line-sub-color) 1px, transparent 1px);
+            background-size: 
+                100% var(--hour-height), 
+                100% calc(var(--hour-height) / 2);
+            background-position: 0 0;
+        }
+
+        /* 現在時刻線 (各カラムに表示する簡易実装版) */
+        .now-line {
+            position: absolute; width: 100%; height: 2px;
+            background: var(--ted-red); pointer-events: none; z-index: 10;
+        }
+
+        /* --- Shift Cards --- */
+        .shift-card {
+            position: absolute;
+            left: 4px; right: 4px; /* 列幅に合わせて横幅いっぱい */
+            background: var(--header-bg);
+            border-radius: 6px; padding: 6px;
+            box-shadow: var(--shadow);
+            border-left: 4px solid transparent;
+            font-size: 0.8rem; overflow: hidden;
+            display: flex; flex-direction: column;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        
+        .role-reception { background-color: var(--role-reception); border-left-color: #d32f2f; }
+        .role-stage { background-color: var(--role-stage); border-left-color: #0288d1; }
+        .role-stream { background-color: var(--role-stream); border-left-color: #388e3c; }
+        .role-venue { background-color: var(--role-venue); border-left-color: #fbc02d; }
+        .role-other { background-color: var(--role-default); border-left-color: #7b1fa2; }
+
+        .card-role { 
+            font-size: 0.7rem; font-weight: bold; opacity: 0.8; margin-bottom: 2px;
+            display: inline-block; padding: 2px 4px; background: rgba(255,255,255,0.5); border-radius: 4px;
+        }
+        .card-time { font-size: 0.7rem; color: var(--text-sub); margin-bottom: 2px; font-family: monospace;}
+        .card-title { font-weight: 700; font-size: 0.85rem; line-height: 1.2; margin-bottom: auto;}
+        .card-loc { font-size: 0.7rem; color: var(--text-sub); margin-top: 4px; text-align: right; }
+
+        /* Filter Hidden State */
+        .hidden-col { display: none; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="top-bar">
+        <h1><span>TEDx</span> Shift Manager</h1>
+        <button class="theme-toggle" id="themeToggle">🌙</button>
+    </div>
+    <div class="controls">
+        <input type="text" id="nameFilter" class="filter-input" placeholder="名前で列を絞り込み...">
+    </div>
+</header>
+
+<div class="tabs" id="dateTabs"></div>
+
+<!-- グリッドレイアウトコンテナ -->
+<div class="grid-container" id="gridContainer">
+    <div class="corner-cell"></div>
+    <!-- JSでここに行と列を追加 -->
+</div>
+
+<script>
+    // --- Sample Data ---
+    const rawData = [
+        { "date": "Day1", "name": "山田", "role": "受付", "title": "来場者受付", "start": "09:30", "end": "12:00", "location": "エントランス" },
+        { "date": "Day1", "name": "鈴木", "role": "登壇補助", "title": "Session 1 準備", "start": "10:00", "end": "11:30", "location": "ホールA" },
+        { "date": "Day1", "name": "佐藤", "role": "配信", "title": "CM送出テスト", "start": "09:55", "end": "10:05", "location": "配信卓" },
+        { "date": "Day1", "name": "山田", "role": "受付", "title": "遅刻者対応", "start": "13:00", "end": "14:35", "location": "エントランス" },
+        { "date": "Day1", "name": "田中", "role": "設営", "title": "ランチ会場設営", "start": "11:15", "end": "12:45", "location": "ホワイエ" },
+        { "date": "Day1", "name": "高橋", "role": "アテンド", "title": "スピーカー移動", "start": "10:35", "end": "12:45", "location": "控え室" },
+        { "date": "Day1", "name": "伊藤", "role": "設営", "title": "備品搬入", "start": "09:00", "end": "10:00", "location": "搬入口" },
+        
+        { "date": "Day2", "name": "山田", "role": "撤収", "title": "全体片付け", "start": "18:00", "end": "20:00", "location": "全館" },
+        { "date": "Day2", "name": "鈴木", "role": "配信", "title": "Session 2 本番", "start": "13:00", "end": "15:00", "location": "配信卓" }
+    ];
+
+    // --- Config ---
+    const START_HOUR = 8;
+    const END_HOUR = 21;
+    const HOUR_HEIGHT = 120; // px
+
+    let currentTab = "";
+    let uniqueDates = [];
+    let currentMembers = []; // 表示中の日のメンバーリスト
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initData();
+        setupTabs();
+        renderGrid(currentTab);
+        setupFilter();
+        setupTheme();
+        
+        // 現在時刻線更新ループ
+        setInterval(updateNowLines, 60000);
+        
+        // 初期スクロール位置
+        setTimeout(() => {
+            const container = document.getElementById('gridContainer');
+            if(container) container.scrollTop = 100;
+        }, 100);
+    });
+
+    function initData() {
+        uniqueDates = Array.from(new Set(rawData.map(d => d.date)));
+        if (uniqueDates.length > 0) currentTab = uniqueDates[0];
+    }
+
+    function setupTabs() {
+        const container = document.getElementById('dateTabs');
+        container.innerHTML = uniqueDates.map(date => 
+            `<div class="tab ${date === currentTab ? 'active' : ''}" onclick="switchTab('${date}')">${date}</div>`
+        ).join('');
+    }
+
+    window.switchTab = (date) => {
+        currentTab = date;
+        document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.innerText === date));
+        renderGrid(date);
+    };
+
+    // --- Grid Rendering ---
+    function renderGrid(date) {
+        const container = document.getElementById('gridContainer');
+        
+        // その日のデータとメンバー抽出
+        const daysEvents = rawData.filter(d => d.date === date);
+        const membersSet = new Set(daysEvents.map(e => e.name));
+        currentMembers = Array.from(membersSet).sort(); // 名前順
+
+        // Grid設定更新: 時間列 + メンバー数
+        container.style.setProperty('--col-count', currentMembers.length);
+        
+        // コンテンツクリア（コーナーセル以外）
+        container.innerHTML = '<div class="corner-cell"></div>';
+
+        // 1. メンバーヘッダー生成 (Grid Row 1)
+        currentMembers.forEach((member, index) => {
+            const header = document.createElement('div');
+            header.className = 'member-header';
+            header.innerText = member;
+            header.dataset.member = member; // フィルタ用
+            // Grid配置: 時間列(1)の次からスタート
+            header.style.gridColumn = index + 2; 
+            header.style.gridRow = 1;
+            container.appendChild(header);
+        });
+
+        // 2. 時間軸サイドバー生成 (Grid Row 2, Col 1)
+        const timeSidebar = document.createElement('div');
+        timeSidebar.className = 'time-sidebar';
+        let timeHtml = '';
+        for (let h = START_HOUR; h <= END_HOUR; h++) {
+            timeHtml += `<div class="time-slot"><span>${h}:00</span></div>`;
+        }
+        timeSidebar.innerHTML = timeHtml;
+        // 時間軸全体の高さを設定
+        timeSidebar.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
+        container.appendChild(timeSidebar);
+
+        // 3. 各メンバーのイベント列生成 (Grid Row 2, Col n)
+        currentMembers.forEach((member, index) => {
+            const col = document.createElement('div');
+            col.className = 'member-column';
+            col.dataset.member = member; // フィルタ用
+            col.style.gridColumn = index + 2;
+            col.style.height = `${(END_HOUR - START_HOUR + 1) * HOUR_HEIGHT}px`;
+
+            // 現在時刻線を追加
+            const nowLine = document.createElement('div');
+            nowLine.className = 'now-line';
+            col.appendChild(nowLine);
+
+            // このメンバーのイベントを配置
+            const myEvents = daysEvents.filter(e => e.name === member);
+            myEvents.forEach(evt => {
+                const card = createCard(evt);
+                col.appendChild(card);
+            });
+
+            container.appendChild(col);
+        });
+
+        updateNowLines();
+        applyFilter(); // フィルタ状態を復元
+    }
+
+    function createCard(evt) {
+        const el = document.createElement('div');
+        el.className = `shift-card ${getRoleClass(evt.role)}`;
+        
+        const top = getTopPosition(evt.start);
+        const height = getDurationHeight(evt.start, evt.end);
+        
+        el.style.top = `${top}px`;
+        el.style.height = `${Math.max(height, 20)}px`; // 最低高さを確保
+
+        // 中身（名前はヘッダーにあるので削除）
+        el.innerHTML = `
+            <span class="card-role">${evt.role}</span>
+            <div class="card-time">${evt.start}-${evt.end}</div>
+            <div class="card-title">${evt.title}</div>
+            <div class="card-loc">📍${evt.location}</div>
+        `;
+        return el;
+    }
+
+    // --- Helpers ---
+    function timeToMinutes(str) {
+        const [h, m] = str.split(':').map(Number);
+        return h * 60 + m;
+    }
+
+    function getTopPosition(str) {
+        const minutes = timeToMinutes(str) - (START_HOUR * 60);
+        return (minutes / 60) * HOUR_HEIGHT;
+    }
+
+    function getDurationHeight(start, end) {
+        const diff = timeToMinutes(end) - timeToMinutes(start);
+        return (diff / 60) * HOUR_HEIGHT;
+    }
+
+    function getRoleClass(role) {
+        if (role.includes("受付")) return "role-reception";
+        if (role.includes("登壇") || role.includes("アテンド")) return "role-stage";
+        if (role.includes("配信")) return "role-stream";
+        if (role.includes("設営") || role.includes("撤収")) return "role-venue";
+        return "role-other";
+    }
+
+    // --- Filter (列の表示/非表示切り替え) ---
+    function setupFilter() {
+        document.getElementById('nameFilter').addEventListener('input', applyFilter);
+    }
+
+    function applyFilter() {
+        const query = document.getElementById('nameFilter').value.trim().toLowerCase();
+        const headers = document.querySelectorAll('.member-header');
+        const cols = document.querySelectorAll('.member-column');
+
+        // 表示するメンバーを特定
+        const visibleMembers = currentMembers.filter(m => 
+            query === "" || m.toLowerCase().includes(query)
+        );
+
+        // グリッド再構築はコストが高いので、display:noneで制御
+        // Gridの場合、column番号がずれるのを防ぐため、DOM要素自体は残しつつ
+        // styleで制御するが、grid-template-columnsの再計算が必要になる場合がある。
+        // 今回はシンプルに、非該当の要素に hidden-col クラスをつける。
+        
+        // CSS Gridの仕様上、要素をdisplay:noneすると列が詰まるので、
+        // コンテナの grid-template-columns も調整する必要がある。
+        
+        let visibleCount = 0;
+
+        headers.forEach(h => {
+            const isMatch = visibleMembers.includes(h.dataset.member);
+            if(isMatch) {
+                h.classList.remove('hidden-col');
+                visibleCount++;
+            } else {
+                h.classList.add('hidden-col');
+            }
+        });
+
+        cols.forEach(c => {
+            const isMatch = visibleMembers.includes(c.dataset.member);
+            if(isMatch) {
+                c.classList.remove('hidden-col');
+            } else {
+                c.classList.add('hidden-col');
+            }
+        });
+
+        // Gridのカラム定義を更新（表示されている数だけに絞る）
+        const container = document.getElementById('gridContainer');
+        container.style.setProperty('--col-count', visibleCount);
+    }
+
+    // --- Theme & Time ---
+    function setupTheme() {
+        const btn = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            html.setAttribute('data-theme', 'dark');
+            btn.innerText = '☀️';
+        }
+        btn.addEventListener('click', () => {
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? '' : 'dark');
+            btn.innerText = isDark ? '🌙' : '☀️';
+        });
+    }
+
+    function updateNowLines() {
+        const now = new Date();
+        const currentH = now.getHours();
+        const currentM = now.getMinutes();
+
+        const lines = document.querySelectorAll('.now-line');
+        
+        if (currentH < START_HOUR || currentH > END_HOUR) {
+            lines.forEach(l => l.style.display = 'none');
+            return;
+        }
+
+        const min = (currentH * 60 + currentM) - (START_HOUR * 60);
+        const top = (min / 60) * HOUR_HEIGHT;
+
+        lines.forEach(l => {
+            l.style.display = 'block';
+            l.style.top = `${top}px`;
+        });
+    }
+</script>
+</body>
+</html>
